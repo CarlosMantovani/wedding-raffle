@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -43,8 +44,10 @@ public class TransactionController {
 
     @Operation(summary = "Create transaction and Mercado Pago checkout")
     @PostMapping
-    public ResponseEntity<TransactionCreateResponse> create(@Valid @RequestBody TransactionCreateRequest request) {
-        return ResponseEntity.ok(transactionService.create(request));
+    public ResponseEntity<TransactionCreateResponse> create(
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @Valid @RequestBody TransactionCreateRequest request) {
+        return ResponseEntity.ok(transactionService.create(idempotencyKey, request));
     }
 
     @Operation(summary = "Recover lucky numbers by phone and recovery code")

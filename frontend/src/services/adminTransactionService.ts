@@ -2,6 +2,7 @@ import { apiClient } from '../config/apiClient';
 import type {
   AdminTransactionResponse,
   AdminTransactionSummaryResponse,
+  CapacityReviewDecision,
   CashTransactionCreateRequest,
   CashTransactionCreateResponse,
 } from '../types/admin';
@@ -33,8 +34,17 @@ export const adminTransactionService = {
     return response.data;
   },
 
-  async createCashTransaction(request: CashTransactionCreateRequest): Promise<CashTransactionCreateResponse> {
-    const response = await apiClient.post<CashTransactionCreateResponse>('/transactions/cash', request);
+  async createCashTransaction(
+    request: CashTransactionCreateRequest,
+    idempotencyKey: string,
+  ): Promise<CashTransactionCreateResponse> {
+    const response = await apiClient.post<CashTransactionCreateResponse>(
+      '/transactions/cash',
+      request,
+      {
+        headers: { 'Idempotency-Key': idempotencyKey },
+      },
+    );
     return response.data;
   },
 
@@ -42,10 +52,20 @@ export const adminTransactionService = {
     await apiClient.delete(`/transactions/${externalReference}`);
   },
 
+  async resolveCapacityReview(
+    externalReference: string,
+    decision: CapacityReviewDecision,
+  ): Promise<void> {
+    await apiClient.put(`/transactions/${externalReference}/capacity-review`, { decision });
+  },
+
   async getParticipantLuckyNumbersPdf(externalReference: string): Promise<Blob> {
-    const response = await apiClient.get<Blob>(`/transactions/${externalReference}/participant-lucky-numbers.pdf`, {
-      responseType: 'blob',
-    });
+    const response = await apiClient.get<Blob>(
+      `/transactions/${externalReference}/participant-lucky-numbers.pdf`,
+      {
+        responseType: 'blob',
+      },
+    );
     return response.data;
   },
 };

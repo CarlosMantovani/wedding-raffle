@@ -29,15 +29,23 @@ public class LuckyNumber {
     @JoinColumn(name = "transaction_id", nullable = false)
     private Transaction transaction;
 
+    @Column(nullable = false)
+    private Integer allocationIndex;
+
     @Column(insertable = false, updatable = false)
     private OffsetDateTime createdAt;
 
     protected LuckyNumber() {}
 
     public LuckyNumber(String number, String email, Transaction transaction) {
+        this(number, email, transaction, null);
+    }
+
+    public LuckyNumber(String number, String email, Transaction transaction, Integer allocationIndex) {
         this.number = number;
         this.email = email;
         this.transaction = transaction;
+        this.allocationIndex = allocationIndex;
     }
 
     public Long getId() {
@@ -54,6 +62,10 @@ public class LuckyNumber {
 
     public Transaction getTransaction() {
         return transaction;
+    }
+
+    public Integer getAllocationIndex() {
+        return allocationIndex;
     }
 
     public OffsetDateTime getCreatedAt() {

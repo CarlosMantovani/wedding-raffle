@@ -1,5 +1,6 @@
 package com.weddingraffle.rifa.dto;
 
+import com.weddingraffle.rifa.entity.CapacityReviewStatus;
 import com.weddingraffle.rifa.entity.PaymentMethod;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -12,6 +13,7 @@ public record AdminTransactionResponse(
         String phone,
         String email,
         PaymentMethod paymentMethod,
+        CapacityReviewStatus capacityReviewStatus,
         Integer quantity,
         BigDecimal totalAmount,
         PaymentStatusResponse status,

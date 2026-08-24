@@ -11,7 +11,7 @@ public interface TransactionService {
 
     TransactionQuoteResponse quote(TransactionQuoteRequest request);
 
-    TransactionCreateResponse create(TransactionCreateRequest request);
+    TransactionCreateResponse create(String idempotencyKey, TransactionCreateRequest request);
 
     void processPaymentNotification(String paymentId);
 

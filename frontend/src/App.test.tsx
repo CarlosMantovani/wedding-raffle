@@ -42,6 +42,7 @@ vi.mock('./services/adminTransactionService', () => ({
     getParticipantLuckyNumbersPdf: vi.fn(),
     getSummary: vi.fn(),
     list: vi.fn(),
+    resolveCapacityReview: vi.fn(),
   },
 }));
 
@@ -158,7 +159,9 @@ describe('App', () => {
       approvedRevenue: '20.00',
       totalTransactions: 1,
     });
-    mockedAdminTransactionService.getParticipantLuckyNumbersPdf.mockResolvedValue(new Blob(['%PDF']));
+    mockedAdminTransactionService.getParticipantLuckyNumbersPdf.mockResolvedValue(
+      new Blob(['%PDF']),
+    );
     mockedRaffleConfigService.getConfig.mockResolvedValue({
       scheduledDrawAt: null,
       unitPrice: '10.00',
@@ -184,13 +187,20 @@ describe('App', () => {
     expect(await screen.findByText('Ranking de bandeiras')).toBeInTheDocument();
     expect(screen.getByText('Uma bandeira exclusiva por telefone.')).toBeInTheDocument();
     expect(screen.getByText('Novas compras somam pontos na mesma bandeira.')).toBeInTheDocument();
-    expect(screen.getByText('Em empate, a compra mais recente fica na frente.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Em empate, a compra mais recente fica na frente.'),
+    ).toBeInTheDocument();
     expect(screen.getByText('A líder também ganhará um prêmio especial.')).toBeInTheDocument();
     expect(await screen.findAllByText('Brasil')).toHaveLength(2);
     expect(screen.getAllByRole('img', { name: '🇧🇷' })).toHaveLength(2);
-    expect(screen.getAllByRole('progressbar', { name: 'Progresso relativo de Brasil' })).toHaveLength(2);
+    expect(
+      screen.getAllByRole('progressbar', { name: 'Progresso relativo de Brasil' }),
+    ).toHaveLength(2);
     expect(screen.queryByText('12')).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Ver top 30' })).toHaveAttribute('href', '/flag-ranking');
+    expect(screen.getByRole('link', { name: 'Ver top 30' })).toHaveAttribute(
+      'href',
+      '/flag-ranking',
+    );
   });
 
   it('renders the top thirty flag ranking page', async () => {
@@ -286,7 +296,9 @@ describe('App', () => {
     renderApp('/buy');
 
     expect(await screen.findAllByText('Sorteio encerrado')).toHaveLength(2);
-    expect(screen.getByText('Sorteio encerrado. Não é mais possível comprar números.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Sorteio encerrado. Não é mais possível comprar números.'),
+    ).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Continuar' })).not.toBeInTheDocument();
     expect(mockedTransactionService.quote).not.toHaveBeenCalled();
   });
@@ -404,12 +416,63 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: /Pagar com Mercado Pago/i }));
     await waitFor(() => expect(mockedTransactionService.create).toHaveBeenCalledTimes(1));
 
-    expect(mockedTransactionService.create).toHaveBeenCalledWith({
-      name: 'Guest User',
-      phone: '11999999999',
-      quantity: 1,
-    });
+    expect(mockedTransactionService.create).toHaveBeenCalledWith(
+      {
+        name: 'Guest User',
+        phone: '11999999999',
+        quantity: 1,
+      },
+      expect.any(String),
+    );
     expect(assign).toHaveBeenCalledWith('https://checkout.example.com');
+  });
+
+  it('reuses the checkout idempotency key after a failed request', async () => {
+    const user = userEvent.setup();
+    const assign = vi.fn();
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { ...window.location, pathname: '/buy', assign },
+    });
+    mockedTransactionService.create
+      .mockRejectedValueOnce({ code: 'PAYMENT_PROVIDER_ERROR' })
+      .mockResolvedValueOnce({
+        checkoutUrl: 'https://checkout.example.com',
+        externalReference: 'external-reference',
+        preferenceId: 'preference-id',
+        recoveryCode: '4821',
+      });
+
+    renderApp('/buy');
+    await user.type(screen.getByLabelText('Nome'), 'Guest User');
+    await user.type(screen.getByLabelText('Telefone'), '(11) 99999-9999');
+    await user.click(screen.getByRole('button', { name: 'Continuar' }));
+    await screen.findAllByText('R$ 10,00');
+
+    await user.click(screen.getByRole('button', { name: /Pagar com Mercado Pago/i }));
+    await screen.findByRole('alert');
+    const firstKey = mockedTransactionService.create.mock.calls[0][1];
+    await user.click(screen.getByRole('button', { name: /Pagar com Mercado Pago/i }));
+
+    await waitFor(() => expect(mockedTransactionService.create).toHaveBeenCalledTimes(2));
+    expect(mockedTransactionService.create.mock.calls[1][1]).toBe(firstKey);
+    expect(assign).toHaveBeenCalledWith('https://checkout.example.com');
+  });
+
+  it('blocks double click while checkout creation is pending', async () => {
+    const user = userEvent.setup();
+    mockedTransactionService.create.mockReturnValue(new Promise(() => undefined));
+
+    renderApp('/buy');
+    await user.type(screen.getByLabelText('Nome'), 'Guest User');
+    await user.type(screen.getByLabelText('Telefone'), '(11) 99999-9999');
+    await user.click(screen.getByRole('button', { name: 'Continuar' }));
+    await screen.findAllByText('R$ 10,00');
+
+    const payButton = screen.getByRole('button', { name: /Pagar com Mercado Pago/i });
+    await user.dblClick(payButton);
+
+    expect(mockedTransactionService.create).toHaveBeenCalledTimes(1);
   });
 
   it('renders approved payment numbers from backend status', async () => {
@@ -510,6 +573,25 @@ describe('App', () => {
     expect(screen.getByText(/Não compartilhe com ninguém/i)).toBeInTheDocument();
   });
 
+  it('keeps an approved payment without numbers in the normal buyer flow and directs contact to admin', async () => {
+    mockedTransactionService.getStatus.mockResolvedValue({
+      externalReference: 'external-reference',
+      recoveryCode: '4821',
+      luckyNumbers: [],
+      participantFlagEmoji: '🇧🇷',
+      participantFlagName: 'Brasil',
+      quantity: 2,
+      status: 'APROVADO',
+      totalAmount: '20.00',
+    });
+
+    renderApp('/payment-return/success?external_reference=external-reference');
+
+    expect(await screen.findByText('Pagamento confirmado')).toBeInTheDocument();
+    expect(screen.getByText(/Entre em contato com o administrador/i)).toBeInTheDocument();
+    expect(screen.queryByText('REVISÃO DE CAPACIDADE')).not.toBeInTheDocument();
+  });
+
   it('recovers lucky numbers by phone and code from the recovery page', async () => {
     const user = userEvent.setup();
     mockedTransactionService.recover.mockResolvedValue({
@@ -556,7 +638,9 @@ describe('App', () => {
   it('redirects protected admin route to login without session', async () => {
     renderApp('/admin');
 
-    expect(await screen.findByText('Área Administrativa', {}, { timeout: 5000 })).toBeInTheDocument();
+    expect(
+      await screen.findByText('Área Administrativa', {}, { timeout: 5000 }),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText('Usuário')).toBeInTheDocument();
   });
 
@@ -575,12 +659,17 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'Entrar' }));
 
     expect(await screen.findByText('Painel administrativo')).toBeInTheDocument();
-    expect(mockedAuthService.login).toHaveBeenCalledWith({ username: 'admin', password: 'password' });
+    expect(mockedAuthService.login).toHaveBeenCalledWith({
+      username: 'admin',
+      password: 'password',
+    });
   });
 
   it('lists admin transactions with phone or name filter', async () => {
     const user = userEvent.setup();
-    storeAdminSession(createAdminSession({ accessToken: 'jwt-token', expiresIn: 3600, tokenType: 'Bearer' }));
+    storeAdminSession(
+      createAdminSession({ accessToken: 'jwt-token', expiresIn: 3600, tokenType: 'Bearer' }),
+    );
 
     renderApp('/admin');
 
@@ -590,7 +679,9 @@ describe('App', () => {
     expect(screen.getByText('14/08/2026, 18:00')).toBeInTheDocument();
     expect(screen.getByText('00001')).toBeInTheDocument();
     expect(screen.getByText('(11) 99999-9999')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Baixar PDF dos números de Guest User' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Baixar PDF dos números de Guest User' }),
+    ).toBeInTheDocument();
 
     await user.type(screen.getByLabelText('Buscar por nome ou telefone'), '(11) 99999-9999');
     await user.click(screen.getByRole('button', { name: 'Buscar' }));
@@ -607,7 +698,9 @@ describe('App', () => {
 
   it('sorts admin transactions by the selected order', async () => {
     const user = userEvent.setup();
-    storeAdminSession(createAdminSession({ accessToken: 'jwt-token', expiresIn: 3600, tokenType: 'Bearer' }));
+    storeAdminSession(
+      createAdminSession({ accessToken: 'jwt-token', expiresIn: 3600, tokenType: 'Bearer' }),
+    );
 
     renderApp('/admin');
 
@@ -626,7 +719,9 @@ describe('App', () => {
 
   it('shows global admin metrics and toggles their visibility', async () => {
     const user = userEvent.setup();
-    storeAdminSession(createAdminSession({ accessToken: 'jwt-token', expiresIn: 3600, tokenType: 'Bearer' }));
+    storeAdminSession(
+      createAdminSession({ accessToken: 'jwt-token', expiresIn: 3600, tokenType: 'Bearer' }),
+    );
     mockedAdminTransactionService.getSummary.mockResolvedValue({
       approvedLuckyNumbers: 99,
       approvedRevenue: '990.00',
@@ -655,7 +750,9 @@ describe('App', () => {
 
   it('expands and collapses transaction lucky numbers above the initial limit', async () => {
     const user = userEvent.setup();
-    const luckyNumbers = Array.from({ length: 10 }, (_, index) => String(index + 1).padStart(5, '0'));
+    const luckyNumbers = Array.from({ length: 10 }, (_, index) =>
+      String(index + 1).padStart(5, '0'),
+    );
     mockedAdminTransactionService.list.mockResolvedValue({
       content: [
         {
@@ -678,7 +775,9 @@ describe('App', () => {
       totalElements: 1,
       totalPages: 1,
     });
-    storeAdminSession(createAdminSession({ accessToken: 'jwt-token', expiresIn: 3600, tokenType: 'Bearer' }));
+    storeAdminSession(
+      createAdminSession({ accessToken: 'jwt-token', expiresIn: 3600, tokenType: 'Bearer' }),
+    );
 
     renderApp('/admin');
 
@@ -699,7 +798,9 @@ describe('App', () => {
   it('deletes cash transactions from admin list', async () => {
     const user = userEvent.setup();
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
-    storeAdminSession(createAdminSession({ accessToken: 'jwt-token', expiresIn: 3600, tokenType: 'Bearer' }));
+    storeAdminSession(
+      createAdminSession({ accessToken: 'jwt-token', expiresIn: 3600, tokenType: 'Bearer' }),
+    );
     mockedAdminTransactionService.list.mockResolvedValue({
       content: [
         {
@@ -731,17 +832,66 @@ describe('App', () => {
 
       expect(confirm).toHaveBeenCalledWith('Excluir esta transação em dinheiro?');
       await waitFor(() =>
-        expect(mockedAdminTransactionService.deleteCashTransaction).toHaveBeenCalledWith('cash-reference'),
+        expect(mockedAdminTransactionService.deleteCashTransaction).toHaveBeenCalledWith(
+          'cash-reference',
+        ),
       );
     } finally {
       confirm.mockRestore();
     }
   });
 
+  it('allows the admin to resolve a capacity review without exposing it publicly', async () => {
+    const user = userEvent.setup();
+    storeAdminSession(
+      createAdminSession({ accessToken: 'jwt-token', expiresIn: 3600, tokenType: 'Bearer' }),
+    );
+    mockedAdminTransactionService.list.mockResolvedValue({
+      content: [
+        {
+          capacityReviewStatus: 'PENDING',
+          createdAt: '2026-08-14T18:00:00-03:00',
+          email: null,
+          externalReference: 'review-reference',
+          luckyNumbers: [],
+          name: 'Review Guest',
+          paymentMethod: 'MERCADO_PAGO',
+          phone: '11999999999',
+          quantity: 2,
+          status: 'APROVADO',
+          totalAmount: '20.00',
+        },
+      ],
+      first: true,
+      last: true,
+      number: 0,
+      size: 20,
+      totalElements: 1,
+      totalPages: 1,
+    });
+    mockedAdminTransactionService.resolveCapacityReview.mockResolvedValue();
+
+    renderApp('/admin');
+
+    expect(await screen.findByText('REVISÃO DE CAPACIDADE')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Contribuição mantida sem números' }));
+
+    await waitFor(() =>
+      expect(mockedAdminTransactionService.resolveCapacityReview).toHaveBeenCalledWith(
+        'review-reference',
+        'CONTRIBUTION_WITHOUT_NUMBERS',
+      ),
+    );
+  });
+
   it('registers an admin cash payment and shows pdf link', async () => {
     const user = userEvent.setup();
-    const luckyNumbers = Array.from({ length: 10 }, (_, index) => String(index + 1).padStart(5, '0'));
-    storeAdminSession(createAdminSession({ accessToken: 'jwt-token', expiresIn: 3600, tokenType: 'Bearer' }));
+    const luckyNumbers = Array.from({ length: 10 }, (_, index) =>
+      String(index + 1).padStart(5, '0'),
+    );
+    storeAdminSession(
+      createAdminSession({ accessToken: 'jwt-token', expiresIn: 3600, tokenType: 'Bearer' }),
+    );
     mockedAdminTransactionService.createCashTransaction.mockResolvedValue({
       email: null,
       externalReference: 'cash-reference',
@@ -773,11 +923,14 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: /Confirmar pagamento/i }));
 
     await waitFor(() =>
-      expect(mockedAdminTransactionService.createCashTransaction).toHaveBeenCalledWith({
-        name: 'Cash Guest',
-        phone: '11999999999',
-        quantity: 10,
-      }),
+      expect(mockedAdminTransactionService.createCashTransaction).toHaveBeenCalledWith(
+        {
+          name: 'Cash Guest',
+          phone: '11999999999',
+          quantity: 10,
+        },
+        expect.any(String),
+      ),
     );
     expect(await screen.findByText('Números adquiridos anteriormente:')).toBeInTheDocument();
     expect(screen.getByText('Números adquiridos agora:')).toBeInTheDocument();
@@ -804,7 +957,9 @@ describe('App', () => {
 
   it('updates raffle unit price from admin settings', async () => {
     const user = userEvent.setup();
-    storeAdminSession(createAdminSession({ accessToken: 'jwt-token', expiresIn: 3600, tokenType: 'Bearer' }));
+    storeAdminSession(
+      createAdminSession({ accessToken: 'jwt-token', expiresIn: 3600, tokenType: 'Bearer' }),
+    );
     mockedRaffleConfigService.updateUnitPrice.mockResolvedValue({
       scheduledDrawAt: null,
       unitPrice: '15.00',
@@ -821,7 +976,9 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: /Salvar preço/i }));
 
     await waitFor(() =>
-      expect(mockedRaffleConfigService.updateUnitPrice).toHaveBeenCalledWith({ unitPrice: '15.00' }),
+      expect(mockedRaffleConfigService.updateUnitPrice).toHaveBeenCalledWith({
+        unitPrice: '15.00',
+      }),
     );
     expect(await screen.findByText('Preço atualizado com sucesso.')).toBeInTheDocument();
     expect(screen.getByText('R$ 15,00')).toBeInTheDocument();
@@ -829,7 +986,9 @@ describe('App', () => {
 
   it('updates scheduled draw date from admin settings', async () => {
     const user = userEvent.setup();
-    storeAdminSession(createAdminSession({ accessToken: 'jwt-token', expiresIn: 3600, tokenType: 'Bearer' }));
+    storeAdminSession(
+      createAdminSession({ accessToken: 'jwt-token', expiresIn: 3600, tokenType: 'Bearer' }),
+    );
     mockedRaffleConfigService.updateScheduledDrawAt.mockResolvedValue({
       scheduledDrawAt: '2026-09-05T23:00:00.000Z',
       unitPrice: '10.00',
@@ -852,7 +1011,9 @@ describe('App', () => {
   });
 
   it('renders existing raffle result and keeps draw action available', async () => {
-    storeAdminSession(createAdminSession({ accessToken: 'jwt-token', expiresIn: 3600, tokenType: 'Bearer' }));
+    storeAdminSession(
+      createAdminSession({ accessToken: 'jwt-token', expiresIn: 3600, tokenType: 'Bearer' }),
+    );
     mockedRaffleService.getResult.mockResolvedValue({
       drawnAt: '2026-07-30T12:00:00Z',
       winnerName: 'Winner Guest',
@@ -869,7 +1030,9 @@ describe('App', () => {
 
   it('shows suspense and runs raffle draw when no result exists', async () => {
     const user = userEvent.setup();
-    storeAdminSession(createAdminSession({ accessToken: 'jwt-token', expiresIn: 3600, tokenType: 'Bearer' }));
+    storeAdminSession(
+      createAdminSession({ accessToken: 'jwt-token', expiresIn: 3600, tokenType: 'Bearer' }),
+    );
     mockedRaffleService.getResult.mockRejectedValue({ status: 404 });
     mockedRaffleService.draw.mockResolvedValue({
       drawnAt: '2026-07-30T12:00:00Z',
@@ -885,7 +1048,9 @@ describe('App', () => {
     expect(await screen.findByText('Sorteando entre os números')).toBeInTheDocument();
     expect(mockedRaffleService.getEligibleNumbers).toHaveBeenCalledTimes(1);
 
-    await waitFor(() => expect(mockedRaffleService.draw).toHaveBeenCalledTimes(1), { timeout: 7000 });
+    await waitFor(() => expect(mockedRaffleService.draw).toHaveBeenCalledTimes(1), {
+      timeout: 7000,
+    });
     expect(await screen.findByText('00042')).toBeInTheDocument();
   }, 8500);
 });

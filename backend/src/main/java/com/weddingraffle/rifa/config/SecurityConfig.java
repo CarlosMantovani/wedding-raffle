@@ -75,6 +75,8 @@ public class SecurityConfig {
                         .hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/transactions/{externalReference}")
                         .hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/transactions/{externalReference}/capacity-review")
+                        .hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/admin/raffle-config")
                         .hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/admin/raffle-config/unit-price")
@@ -142,7 +144,8 @@ public class SecurityConfig {
         configuration.setAllowedOriginPatterns(
                 List.of(appProperties.frontendOrigin(), "https://*.ngrok-free.dev", "https://*.ngrok-free.app"));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "ngrok-skip-browser-warning"));
+        configuration.setAllowedHeaders(
+                List.of("Authorization", "Content-Type", "Idempotency-Key", "ngrok-skip-browser-warning"));
         configuration.setAllowCredentials(false);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
