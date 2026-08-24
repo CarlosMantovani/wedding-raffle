@@ -26,11 +26,12 @@ export const transactionService = {
 
   async getStatus(
     externalReference: string,
+    paymentId?: string,
     signal?: AbortSignal,
   ): Promise<TransactionStatusResponse> {
     const response = await apiClient.get<TransactionStatusResponse>(
       `/transactions/${externalReference}/status`,
-      { signal },
+      { params: paymentId ? { paymentId } : undefined, signal },
     );
     return response.data;
   },

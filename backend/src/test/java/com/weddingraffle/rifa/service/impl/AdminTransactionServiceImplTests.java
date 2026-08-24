@@ -117,6 +117,30 @@ class AdminTransactionServiceImplTests {
     }
 
     @Test
+    void listsGiftMessagesForAdmin() {
+        AdminTransactionServiceImpl service = service();
+        Transaction transaction = new Transaction(
+                "Guest User",
+                "11999999999",
+                null,
+                "Felicidades ao casal!",
+                1,
+                new BigDecimal("10.00"),
+                new BigDecimal("10.00"),
+                PaymentStatus.APPROVED,
+                PaymentMethod.MERCADO_PAGO,
+                "external");
+        PageRequest pageable = PageRequest.of(0, 20);
+        when(transactionRepository.findByGiftMessageIsNotNullAndGiftMessageNot("", pageable))
+                .thenReturn(new PageImpl<>(List.of(transaction), pageable, 1));
+
+        var response = service.listGiftMessages(pageable);
+
+        assertThat(response.getContent().getFirst().name()).isEqualTo("Guest User");
+        assertThat(response.getContent().getFirst().giftMessage()).isEqualTo("Felicidades ao casal!");
+    }
+
+    @Test
     void createsApprovedCashTransactionWithLuckyNumbers() {
         AdminTransactionServiceImpl service = service();
         String idempotencyKey = "cash-key-123";
@@ -144,6 +168,7 @@ class AdminTransactionServiceImplTests {
                         "Guest User",
                         "11999999999",
                         "guest@example.com",
+                        null,
                         2,
                         new BigDecimal("10.00"),
                         new BigDecimal("20.00")))
@@ -170,6 +195,7 @@ class AdminTransactionServiceImplTests {
                         "Guest User",
                         "11999999999",
                         "guest@example.com",
+                        null,
                         2,
                         new BigDecimal("10.00"),
                         new BigDecimal("20.00"));
@@ -221,6 +247,7 @@ class AdminTransactionServiceImplTests {
                         requestHash,
                         "Guest User",
                         "11999999999",
+                        null,
                         null,
                         2,
                         new BigDecimal("10.00"),

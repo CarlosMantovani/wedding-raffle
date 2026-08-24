@@ -4,9 +4,12 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -32,6 +35,9 @@ public class Transaction {
     @Column(length = 320)
     private String email;
 
+    @Column(length = 280)
+    private String giftMessage;
+
     @Column(nullable = false)
     private Integer quantity;
 
@@ -40,6 +46,10 @@ public class Transaction {
 
     @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal unitPrice;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "raffle_combo_id")
+    private RaffleCombo raffleCombo;
 
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
@@ -107,6 +117,7 @@ public class Transaction {
                 email,
                 "0000000000",
                 email,
+                null,
                 quantity,
                 inferUnitPrice(totalAmount, quantity),
                 totalAmount,
@@ -128,6 +139,7 @@ public class Transaction {
                 name,
                 phone,
                 email,
+                null,
                 quantity,
                 inferUnitPrice(totalAmount, quantity),
                 totalAmount,
@@ -140,6 +152,7 @@ public class Transaction {
             String name,
             String phone,
             String email,
+            String giftMessage,
             Integer quantity,
             BigDecimal unitPrice,
             BigDecimal totalAmount,
@@ -149,12 +162,26 @@ public class Transaction {
         this.name = name;
         this.phone = phone;
         this.email = email;
+        this.giftMessage = giftMessage;
         this.quantity = quantity;
         this.unitPrice = unitPrice;
         this.totalAmount = totalAmount;
         this.status = status;
         this.paymentMethod = paymentMethod;
         this.externalReference = externalReference;
+    }
+
+    public Transaction(
+            String name,
+            String phone,
+            String email,
+            Integer quantity,
+            BigDecimal unitPrice,
+            BigDecimal totalAmount,
+            PaymentStatus status,
+            PaymentMethod paymentMethod,
+            String externalReference) {
+        this(name, phone, email, null, quantity, unitPrice, totalAmount, status, paymentMethod, externalReference);
     }
 
     public Long getId() {
@@ -173,6 +200,10 @@ public class Transaction {
         return email;
     }
 
+    public String getGiftMessage() {
+        return giftMessage;
+    }
+
     public Integer getQuantity() {
         return quantity;
     }
@@ -183,6 +214,10 @@ public class Transaction {
 
     public BigDecimal getUnitPrice() {
         return unitPrice;
+    }
+
+    public RaffleCombo getRaffleCombo() {
+        return raffleCombo;
     }
 
     public PaymentStatus getStatus() {
@@ -286,6 +321,10 @@ public class Transaction {
         this.mpPreferenceId = mpPreferenceId;
         this.mpCheckoutUrl = mpCheckoutUrl;
         this.mpCollectorId = mpCollectorId;
+    }
+
+    public void assignRaffleCombo(RaffleCombo raffleCombo) {
+        this.raffleCombo = raffleCombo;
     }
 
     public boolean hasCompletedLuckyNumberBatch() {

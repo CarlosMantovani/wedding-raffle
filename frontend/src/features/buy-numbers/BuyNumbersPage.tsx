@@ -14,19 +14,22 @@ import { publicMessages } from '../../content/messages';
 import { homeService } from '../../services/homeService';
 import { transactionService } from '../../services/transactionService';
 import type { RaffleResult } from '../../types/home';
+import type { RaffleComboResponse } from '../../types/transaction';
 import { isPastDateTime } from '../../utils/dateTime';
 import { formatCurrency } from '../../utils/formatters';
 import { clearIdempotencyKey, getOrCreateIdempotencyKey } from '../../utils/idempotency';
 import { formatPhoneNumber, normalizePhoneNumber } from '../../utils/phone';
-import { FlagRankingPanel } from '../flag-ranking/FlagRankingPanel';
 import { CountdownPanel } from './CountdownPanel';
 import { buyerSchema, type BuyerFormData } from './schemas';
 
 const CHECKOUT_IDEMPOTENCY_ACTION = 'mercado-pago-checkout';
+const GIFT_MESSAGE_MAX_LENGTH = 280;
 
 export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolean }) {
   const [buyer, setBuyer] = useState<BuyerFormData | null>(null);
   const [quantity, setQuantity] = useState(1);
+  const [giftMessage, setGiftMessage] = useState('');
+  const [selectedComboId, setSelectedComboId] = useState<number | null>(null);
   const [, setTick] = useState(0);
 
   const {
@@ -47,8 +50,14 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
   const isDrawClosed = isPastDateTime(scheduledDrawAt);
   const quoteQuery = useQuery({
     enabled: Boolean(buyer) && !isDrawClosed,
-    queryKey: ['transaction-quote', buyer, quantity],
-    queryFn: () => transactionService.quote({ ...buyer!, quantity }),
+    placeholderData: (previousData) => previousData,
+    queryKey: ['transaction-quote', buyer, quantity, selectedComboId],
+    queryFn: () =>
+      transactionService.quote({
+        ...buyer!,
+        quantity,
+        ...(selectedComboId === null ? {} : { comboId: selectedComboId }),
+      }),
   });
 
   useEffect(() => {
@@ -74,12 +83,37 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
     });
   };
 
-  const decreaseQuantity = () => setQuantity((current) => Math.max(1, current - 1));
-  const increaseQuantity = () => setQuantity((current) => current + 1);
+  const decreaseQuantity = () => {
+    setSelectedComboId(null);
+    setQuantity((current) => Math.max(1, current - 1));
+  };
+  const increaseQuantity = () => {
+    setSelectedComboId(null);
+    setQuantity((current) => current + 1);
+  };
+
+  const changeQuantity = (value: string) => {
+    const nextQuantity = Number(value);
+    if (!Number.isInteger(nextQuantity) || nextQuantity < 1) return;
+    setSelectedComboId(null);
+    setQuantity(nextQuantity);
+  };
+
+  const selectCombo = (combo: RaffleComboResponse) => {
+    setQuantity(combo.quantity);
+    setSelectedComboId(combo.id);
+  };
 
   const handlePay = () => {
     if (!buyer || isDrawClosed || createTransactionMutation.isPending) return;
-    const request = { ...buyer, quantity };
+    const trimmedGiftMessage = giftMessage.trim();
+    if (trimmedGiftMessage.length > GIFT_MESSAGE_MAX_LENGTH) return;
+    const request = {
+      ...buyer,
+      ...(trimmedGiftMessage ? { giftMessage: trimmedGiftMessage } : {}),
+      quantity,
+      ...(selectedComboId === null ? {} : { comboId: selectedComboId }),
+    };
     createTransactionMutation.mutate({
       idempotencyKey: getOrCreateIdempotencyKey(CHECKOUT_IDEMPOTENCY_ACTION, request),
       request,
@@ -89,6 +123,12 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
   const currentStep: 1 | 2 = buyer ? 2 : 1;
   const unitPrice = quoteQuery.data?.unitPrice;
   const totalAmount = quoteQuery.data?.totalAmount;
+  const quoteMatchesSelection =
+    quoteQuery.data?.quantity === quantity &&
+    (quoteQuery.data?.comboId ?? null) === selectedComboId;
+  const selectedCombo = quoteMatchesSelection
+    ? quoteQuery.data?.availableCombos.find((combo) => combo.id === selectedComboId)
+    : undefined;
 
   return (
     <main className="min-h-screen bg-cream px-6 pb-16 pt-10 text-charcoal">
@@ -113,7 +153,7 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
           </a>
         ) : null}
 
-        <CountdownPanel scheduledDrawAt={scheduledDrawAt} />
+        {!isDrawClosed ? <CountdownPanel scheduledDrawAt={scheduledDrawAt} /> : null}
 
         {!isDrawClosed ? <StepProgress currentStep={currentStep} /> : null}
 
@@ -200,9 +240,18 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
                 </button>
 
                 <div className="min-w-24 text-center">
-                  <span className="block font-serif text-7xl font-bold leading-none text-charcoal">
-                    {quantity}
-                  </span>
+                  <input
+                    aria-label="Quantidade de números"
+                    className="block w-28 appearance-none border-0 bg-transparent text-center font-serif text-7xl font-bold leading-none text-charcoal outline-none focus-visible:ring-2 focus-visible:ring-gold"
+                    inputMode="numeric"
+                    min="1"
+                    onChange={(event) => changeQuantity(event.target.value)}
+                    onFocus={(event) => event.currentTarget.select()}
+                    pattern="[0-9]*"
+                    step="1"
+                    type="number"
+                    value={quantity}
+                  />
                   <span className="mt-1 block text-xs text-warm-gray">
                     {quantity === 1 ? 'número' : 'números'}
                   </span>
@@ -219,6 +268,27 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
               </div>
             </Card>
 
+            {quoteQuery.data?.availableCombos.length ? (
+              <section aria-labelledby="combo-title" className="space-y-3">
+                <div className="text-center">
+                  <h2 className="text-sm font-bold text-charcoal" id="combo-title">
+                    Ou escolha um combo
+                  </h2>
+                  <p className="mt-1 text-xs text-warm-gray">Mais números com preço promocional</p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {quoteQuery.data.availableCombos.map((combo) => (
+                    <ComboCard
+                      combo={combo}
+                      isSelected={combo.id === selectedComboId}
+                      key={combo.id}
+                      onSelect={() => selectCombo(combo)}
+                    />
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
             <Card className="bg-ivory-deep shadow-none">
               <dl className="space-y-3">
                 <div className="flex items-center justify-between gap-4">
@@ -230,21 +300,58 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
                 <div className="flex items-center justify-between gap-4">
                   <dt className="text-sm text-warm-gray">Valor unitário</dt>
                   <dd className="text-sm font-semibold">
-                    {quoteQuery.isLoading
+                    {quoteQuery.isFetching || !quoteMatchesSelection
                       ? 'Atualizando...'
                       : unitPrice
                         ? formatCurrency(unitPrice)
                         : '-'}
                   </dd>
                 </div>
+                {selectedCombo ? (
+                  <>
+                    <div className="flex items-center justify-between gap-4">
+                      <dt className="text-sm text-warm-gray">Valor normal</dt>
+                      <dd className="text-sm font-semibold text-warm-gray line-through">
+                        {formatCurrency(selectedCombo.regularPrice)}
+                      </dd>
+                    </div>
+                    <div className="flex items-center justify-between gap-4">
+                      <dt className="text-sm font-bold text-olive">Economia</dt>
+                      <dd className="text-sm font-bold text-olive">
+                        {formatCurrency(selectedCombo.savingsAmount)}
+                      </dd>
+                    </div>
+                  </>
+                ) : null}
                 <div className="h-px bg-line" />
                 <div className="flex items-center justify-between gap-4">
                   <dt className="text-base font-bold">Total</dt>
                   <dd className="font-serif text-3xl font-bold text-green">
-                    {quoteQuery.isLoading ? '...' : totalAmount ? formatCurrency(totalAmount) : '-'}
+                    {quoteQuery.isFetching || !quoteMatchesSelection
+                      ? '...'
+                      : totalAmount
+                        ? formatCurrency(totalAmount)
+                        : '-'}
                   </dd>
                 </div>
               </dl>
+            </Card>
+
+            <Card className="bg-white/85 shadow-none">
+              <label className="block text-sm font-semibold text-charcoal" htmlFor="gift-message">
+                Mensagem para o casal (opcional)
+              </label>
+              <textarea
+                className="mt-2 min-h-28 w-full resize-none rounded-lg border border-line bg-white px-4 py-3 text-base text-charcoal outline-none transition placeholder:text-warm-gray/60 focus:border-gold focus:ring-2 focus:ring-gold/20"
+                id="gift-message"
+                maxLength={GIFT_MESSAGE_MAX_LENGTH}
+                onChange={(event) => setGiftMessage(event.target.value)}
+                placeholder="Deixe uma mensagem de carinho"
+                value={giftMessage}
+              />
+              <p className="mt-2 text-right text-xs font-semibold text-warm-gray">
+                {giftMessage.length}/{GIFT_MESSAGE_MAX_LENGTH}
+              </p>
             </Card>
 
             {quoteQuery.isError ? (
@@ -266,7 +373,12 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
             ) : null}
 
             <Button
-              disabled={!quoteQuery.data || quoteQuery.isFetching}
+              disabled={
+                !quoteQuery.data ||
+                quoteQuery.isFetching ||
+                !quoteMatchesSelection ||
+                giftMessage.trim().length > GIFT_MESSAGE_MAX_LENGTH
+              }
               isLoading={createTransactionMutation.isPending}
               onClick={handlePay}
               type="button"
@@ -284,10 +396,6 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
           isDrawClosed={isDrawClosed}
           result={homeSummaryQuery.data?.raffleResult ?? null}
         />
-        <FlagRankingPanel
-          isLoading={homeSummaryQuery.isLoading}
-          ranking={homeSummaryQuery.data?.flagRanking ?? []}
-        />
       </div>
     </main>
   );
@@ -295,7 +403,54 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
 
 interface PurchaseSubmission {
   idempotencyKey: string;
-  request: BuyerFormData & { quantity: number };
+  request: BuyerFormData & { giftMessage?: string; quantity: number; comboId?: number };
+}
+
+function ComboCard({
+  combo,
+  isSelected,
+  onSelect,
+}: {
+  combo: RaffleComboResponse;
+  isSelected: boolean;
+  onSelect: () => void;
+}) {
+  const badges = [
+    combo.highlightMostChosen ? 'Mais escolhido' : null,
+    combo.highlightBestValue ? 'Melhor valor' : null,
+  ].filter((badge): badge is string => badge !== null);
+
+  return (
+    <button
+      aria-pressed={isSelected}
+      className={`relative min-h-36 rounded-xl border-2 px-3 pb-3 pt-5 text-left transition ${
+        isSelected
+          ? 'border-terracotta bg-blush shadow-button'
+          : 'border-line bg-white hover:border-gold'
+      }`}
+      onClick={onSelect}
+      type="button"
+    >
+      {badges.length ? (
+        <span className="absolute -top-2 left-2 rounded-full bg-terracotta px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
+          {badges.join(' · ')}
+        </span>
+      ) : null}
+      <span className="block text-sm font-bold text-charcoal">{combo.quantity} números</span>
+      <span className="mt-1 block font-serif text-xl font-bold text-green">
+        {formatCurrency(combo.price)}
+      </span>
+      <span className="mt-1 block text-[11px] text-warm-gray line-through">
+        Preço normal {formatCurrency(combo.regularPrice)}
+      </span>
+      <span className="mt-2 block text-xs font-semibold text-olive">
+        Economize {formatCurrency(combo.savingsAmount)}
+      </span>
+      <span className="mt-1 block text-[11px] text-warm-gray">
+        {formatCurrency(combo.averagePricePerNumber)} por número
+      </span>
+    </button>
+  );
 }
 
 export function RaffleResultPanel({

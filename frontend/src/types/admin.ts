@@ -1,4 +1,4 @@
-import type { PaymentStatus } from './transaction';
+import type { PaymentStatus, RaffleComboResponse } from './transaction';
 
 export type PaymentMethod = 'MERCADO_PAGO' | 'CASH';
 export type CapacityReviewStatus = 'PENDING' | 'REFUND_COMPLETED' | 'CONTRIBUTION_WITHOUT_NUMBERS';
@@ -10,6 +10,7 @@ export interface AdminTransactionResponse {
   name: string;
   phone: string;
   email: string | null;
+  giftMessage?: string | null;
   paymentMethod: PaymentMethod;
   capacityReviewStatus?: CapacityReviewStatus | null;
   quantity: number;
@@ -28,6 +29,7 @@ export interface CashTransactionCreateRequest {
   name: string;
   phone: string;
   email?: string;
+  giftMessage?: string;
   quantity: number;
 }
 
@@ -66,6 +68,7 @@ export interface RaffleConfigResponse {
   unitPrice: string;
   scheduledDrawAt: string | null;
   updatedAt: string | null;
+  combos: RaffleComboResponse[];
 }
 
 export interface UnitPriceUpdateRequest {
@@ -74,4 +77,19 @@ export interface UnitPriceUpdateRequest {
 
 export interface ScheduledDrawAtUpdateRequest {
   scheduledDrawAt: string;
+}
+
+export interface AdminGiftMessageResponse {
+  externalReference: string;
+  createdAt: string;
+  name: string;
+  giftMessage: string;
+}
+
+export interface RaffleComboUpdateRequest {
+  price: string;
+  active: boolean;
+  displayOrder: number;
+  highlightMostChosen: boolean;
+  highlightBestValue: boolean;
 }

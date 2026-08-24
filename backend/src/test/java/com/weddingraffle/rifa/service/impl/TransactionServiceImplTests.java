@@ -29,7 +29,9 @@ import com.weddingraffle.rifa.service.LuckyNumberService;
 import com.weddingraffle.rifa.service.OnlinePurchaseAttempt;
 import com.weddingraffle.rifa.service.PaymentReconciliationService;
 import com.weddingraffle.rifa.service.PurchaseIntentService;
+import com.weddingraffle.rifa.service.PurchasePrice;
 import com.weddingraffle.rifa.service.RaffleConfigService;
+import com.weddingraffle.rifa.service.RafflePricingService;
 import com.weddingraffle.rifa.util.PurchaseRequestHasher;
 import java.math.BigDecimal;
 import java.util.List;
@@ -65,12 +67,17 @@ class TransactionServiceImplTests {
     @Mock
     private PurchaseIntentService purchaseIntentService;
 
+    @Mock
+    private RafflePricingService rafflePricingService;
+
     private final PurchaseRequestHasher purchaseRequestHasher = new PurchaseRequestHasher();
 
     @Test
     void calculatesQuoteFromConfiguredUnitPrice() {
         TransactionServiceImpl transactionService = transactionService();
-        when(raffleConfigService.getCurrentUnitPrice()).thenReturn(new BigDecimal("10.00"));
+        when(rafflePricingService.calculate(3, null))
+                .thenReturn(new PurchasePrice(new BigDecimal("10.00"), new BigDecimal("30.00"), null));
+        when(rafflePricingService.getActiveCombos()).thenReturn(List.of());
 
         TransactionQuoteResponse response =
                 transactionService.quote(new TransactionQuoteRequest("Guest User", "(11) 99999-9999", 3));
@@ -103,15 +110,9 @@ class TransactionServiceImplTests {
         TransactionCreateResponse expectedResponse = new TransactionCreateResponse(
                 "external-reference-123", "4821", "preference-123", "https://checkout.example.com");
         when(purchaseIntentService.findOnline(idempotencyKey, requestHash)).thenReturn(Optional.empty());
-        when(raffleConfigService.getCurrentUnitPrice()).thenReturn(new BigDecimal("10.00"));
+        when(rafflePricingService.calculate(2, null)).thenReturn(regularPurchasePrice());
         when(purchaseIntentService.prepareOnline(
-                        idempotencyKey,
-                        requestHash,
-                        "Guest User",
-                        "11999999999",
-                        2,
-                        new BigDecimal("10.00"),
-                        new BigDecimal("20.00")))
+                        idempotencyKey, requestHash, "Guest User", "11999999999", null, 2, regularPurchasePrice()))
                 .thenReturn(new OnlinePurchaseAttempt(preferenceRequest, null));
         when(paymentProviderClient.createPreference(preferenceRequest, idempotencyKey))
                 .thenReturn(new CheckoutPreferenceResponse(
@@ -149,6 +150,42 @@ class TransactionServiceImplTests {
     }
 
     @Test
+    void trimsGiftMessageWhenCreatingCheckout() {
+        TransactionServiceImpl transactionService = transactionService();
+        String idempotencyKey = "checkout-key-123";
+        String requestHash = purchaseRequestHasher.online("Guest User", "11999999999", "Felicidades!", 2);
+        CheckoutPreferenceRequest preferenceRequest =
+                new CheckoutPreferenceRequest("Guest User", null, 2, new BigDecimal("10.00"), "external-reference-123");
+        TransactionCreateResponse expectedResponse = new TransactionCreateResponse(
+                "external-reference-123", "4821", "preference-123", "https://checkout.example.com");
+        when(purchaseIntentService.findOnline(idempotencyKey, requestHash)).thenReturn(Optional.empty());
+        when(rafflePricingService.calculate(2, null)).thenReturn(regularPurchasePrice());
+        when(purchaseIntentService.prepareOnline(
+                        idempotencyKey,
+                        requestHash,
+                        "Guest User",
+                        "11999999999",
+                        "Felicidades!",
+                        2,
+                        regularPurchasePrice()))
+                .thenReturn(new OnlinePurchaseAttempt(preferenceRequest, null));
+        when(paymentProviderClient.createPreference(preferenceRequest, idempotencyKey))
+                .thenReturn(new CheckoutPreferenceResponse(
+                        "preference-123", "https://checkout.example.com", "collector-123"));
+        when(purchaseIntentService.completeOnline(
+                        idempotencyKey,
+                        requestHash,
+                        new CheckoutPreferenceResponse(
+                                "preference-123", "https://checkout.example.com", "collector-123")))
+                .thenReturn(expectedResponse);
+
+        TransactionCreateResponse response = transactionService.create(
+                idempotencyKey, new TransactionCreateRequest("Guest User", "(11) 99999-9999", "  Felicidades!  ", 2));
+
+        assertThat(response).isEqualTo(expectedResponse);
+    }
+
+    @Test
     void createRejectsPurchaseAfterDrawIsClosed() {
         TransactionServiceImpl transactionService = transactionService();
         String requestHash = purchaseRequestHasher.online("Guest User", "11999999999", 2);
@@ -161,7 +198,7 @@ class TransactionServiceImplTests {
                 .hasMessage("Draw is closed. No more numbers can be purchased.");
         verify(paymentProviderClient, never()).createPreference(any(), any());
         verify(purchaseIntentService, never())
-                .prepareOnline(any(), any(), any(), any(), any(Integer.class), any(), any());
+                .prepareOnline(any(), any(), any(), any(), any(), any(Integer.class), any());
     }
 
     @Test
@@ -191,15 +228,9 @@ class TransactionServiceImplTests {
         String requestHash = purchaseRequestHasher.online("Guest User", "11999999999", 2);
         when(purchaseIntentService.findOnline(idempotencyKey, requestHash))
                 .thenReturn(Optional.empty(), Optional.empty());
-        when(raffleConfigService.getCurrentUnitPrice()).thenReturn(new BigDecimal("10.00"));
+        when(rafflePricingService.calculate(2, null)).thenReturn(regularPurchasePrice());
         when(purchaseIntentService.prepareOnline(
-                        idempotencyKey,
-                        requestHash,
-                        "Guest User",
-                        "11999999999",
-                        2,
-                        new BigDecimal("10.00"),
-                        new BigDecimal("20.00")))
+                        idempotencyKey, requestHash, "Guest User", "11999999999", null, 2, regularPurchasePrice()))
                 .thenThrow(new DataIntegrityViolationException("database unavailable"));
 
         assertThatThrownBy(() -> transactionService.create(
@@ -223,15 +254,9 @@ class TransactionServiceImplTests {
                 "external-reference-123", "4821", "preference-123", "https://checkout.example.com");
         when(purchaseIntentService.findOnline(idempotencyKey, requestHash))
                 .thenReturn(Optional.empty(), Optional.of(pendingAttempt));
-        when(raffleConfigService.getCurrentUnitPrice()).thenReturn(new BigDecimal("10.00"));
+        when(rafflePricingService.calculate(2, null)).thenReturn(regularPurchasePrice());
         when(purchaseIntentService.prepareOnline(
-                        idempotencyKey,
-                        requestHash,
-                        "Guest User",
-                        "11999999999",
-                        2,
-                        new BigDecimal("10.00"),
-                        new BigDecimal("20.00")))
+                        idempotencyKey, requestHash, "Guest User", "11999999999", null, 2, regularPurchasePrice()))
                 .thenReturn(pendingAttempt);
         when(paymentProviderClient.createPreference(preferenceRequest, idempotencyKey))
                 .thenThrow(new ExternalPaymentException("response lost", new java.net.SocketTimeoutException()))
@@ -249,13 +274,7 @@ class TransactionServiceImplTests {
         verify(paymentProviderClient, times(2)).createPreference(preferenceRequest, idempotencyKey);
         verify(purchaseIntentService, times(1))
                 .prepareOnline(
-                        idempotencyKey,
-                        requestHash,
-                        "Guest User",
-                        "11999999999",
-                        2,
-                        new BigDecimal("10.00"),
-                        new BigDecimal("20.00"));
+                        idempotencyKey, requestHash, "Guest User", "11999999999", null, 2, regularPurchasePrice());
     }
 
     @Test
@@ -272,15 +291,9 @@ class TransactionServiceImplTests {
                 "external-reference-123", "4821", "preference-123", "https://checkout.example.com");
         when(purchaseIntentService.findOnline(idempotencyKey, requestHash))
                 .thenReturn(Optional.empty(), Optional.of(pendingAttempt));
-        when(raffleConfigService.getCurrentUnitPrice()).thenReturn(new BigDecimal("10.00"));
+        when(rafflePricingService.calculate(2, null)).thenReturn(regularPurchasePrice());
         when(purchaseIntentService.prepareOnline(
-                        idempotencyKey,
-                        requestHash,
-                        "Guest User",
-                        "11999999999",
-                        2,
-                        new BigDecimal("10.00"),
-                        new BigDecimal("20.00")))
+                        idempotencyKey, requestHash, "Guest User", "11999999999", null, 2, regularPurchasePrice()))
                 .thenReturn(pendingAttempt);
         when(paymentProviderClient.createPreference(preferenceRequest, idempotencyKey))
                 .thenReturn(preference);
@@ -322,7 +335,7 @@ class TransactionServiceImplTests {
         when(luckyNumberService.findPreviousApprovedNumbers("0000000000", "external-reference-123"))
                 .thenReturn(List.of("00090", "00091"));
 
-        var response = transactionService.getStatus("external-reference-123");
+        var response = transactionService.getStatus("external-reference-123", null);
 
         assertThat(response.externalReference()).isEqualTo("external-reference-123");
         assertThat(response.recoveryCode()).isEqualTo("4821");
@@ -354,10 +367,40 @@ class TransactionServiceImplTests {
         when(luckyNumberService.findPreviousApprovedNumbers("0000000000", "external-reference-123"))
                 .thenReturn(List.of());
 
-        var response = transactionService.getStatus("external-reference-123");
+        var response = transactionService.getStatus("external-reference-123", null);
 
         assertThat(response.status()).isEqualTo(PaymentStatusResponse.APROVADO);
         verify(pendingPaymentReconciliationCoordinator).reconcileIfDue(transaction);
+    }
+
+    @Test
+    void statusMaterializesTransactionAndReconcilesRedirectPayment() {
+        TransactionServiceImpl transactionService = transactionService();
+        Transaction materializedTransaction = new Transaction(
+                "Guest User",
+                "11999999999",
+                null,
+                2,
+                new BigDecimal("10.00"),
+                new BigDecimal("20.00"),
+                PaymentStatus.PENDING,
+                PaymentMethod.MERCADO_PAGO,
+                "external-reference-123");
+        materializedTransaction.assignRecoveryCode("4821");
+        PaymentProviderPayment payment = payment("123", "external-reference-123", "approved");
+        when(transactionRepository.findByExternalReference("external-reference-123"))
+                .thenReturn(Optional.empty(), Optional.of(materializedTransaction));
+        when(purchaseIntentService.materializeOnlineTransaction("external-reference-123"))
+                .thenReturn(materializedTransaction);
+        when(paymentProviderClient.getPayment("123")).thenReturn(payment);
+        when(luckyNumberService.findNumbers("external-reference-123")).thenReturn(List.of());
+
+        var response = transactionService.getStatus("external-reference-123", " 123 ");
+
+        assertThat(response.externalReference()).isEqualTo("external-reference-123");
+        assertThat(response.recoveryCode()).isEqualTo("4821");
+        verify(purchaseIntentService).materializeOnlineTransaction("external-reference-123");
+        verify(paymentReconciliationService).reconcile("123", "external-reference-123", payment);
     }
 
     @Test
@@ -397,7 +440,12 @@ class TransactionServiceImplTests {
                 paymentReconciliationService,
                 pendingPaymentReconciliationCoordinator,
                 purchaseIntentService,
-                purchaseRequestHasher);
+                purchaseRequestHasher,
+                rafflePricingService);
+    }
+
+    private static PurchasePrice regularPurchasePrice() {
+        return new PurchasePrice(new BigDecimal("10.00"), new BigDecimal("20.00"), null);
     }
 
     private static PaymentProviderPayment payment(String paymentId, String externalReference, String status) {

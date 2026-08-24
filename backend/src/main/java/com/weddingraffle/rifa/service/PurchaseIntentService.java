@@ -2,6 +2,7 @@ package com.weddingraffle.rifa.service;
 
 import com.weddingraffle.rifa.dto.CashTransactionCreateResponse;
 import com.weddingraffle.rifa.dto.TransactionCreateResponse;
+import com.weddingraffle.rifa.entity.Transaction;
 import com.weddingraffle.rifa.integration.CheckoutPreferenceResponse;
 import java.math.BigDecimal;
 import java.util.Optional;
@@ -15,12 +16,14 @@ public interface PurchaseIntentService {
             String requestHash,
             String name,
             String phone,
+            String giftMessage,
             int quantity,
-            BigDecimal unitPrice,
-            BigDecimal totalAmount);
+            PurchasePrice purchasePrice);
 
     TransactionCreateResponse completeOnline(
             String idempotencyKey, String requestHash, CheckoutPreferenceResponse preference);
+
+    Transaction materializeOnlineTransaction(String externalReference);
 
     Optional<CashTransactionCreateResponse> findCash(String idempotencyKey, String requestHash);
 
@@ -30,6 +33,7 @@ public interface PurchaseIntentService {
             String name,
             String phone,
             String email,
+            String giftMessage,
             int quantity,
             BigDecimal unitPrice,
             BigDecimal totalAmount);

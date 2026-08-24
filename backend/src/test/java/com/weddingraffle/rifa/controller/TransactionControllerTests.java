@@ -1,7 +1,9 @@
 package com.weddingraffle.rifa.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
@@ -13,6 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.weddingraffle.rifa.config.AppProperties;
 import com.weddingraffle.rifa.config.SecurityConfig;
 import com.weddingraffle.rifa.dto.PaymentStatusResponse;
+import com.weddingraffle.rifa.dto.TransactionCreateRequest;
 import com.weddingraffle.rifa.dto.TransactionCreateResponse;
 import com.weddingraffle.rifa.dto.TransactionQuoteResponse;
 import com.weddingraffle.rifa.dto.TransactionStatusResponse;
@@ -22,6 +25,7 @@ import com.weddingraffle.rifa.service.TransactionService;
 import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -114,11 +118,55 @@ class TransactionControllerTests {
     }
 
     @Test
+    void createIgnoresClientFinancialFieldsAndAcceptsOnlyQuantityAndComboReference() throws Exception {
+        when(transactionService.create(eq("checkout-key-123"), any()))
+                .thenReturn(new TransactionCreateResponse(
+                        "external-reference-123", "4821", "preference-123", "https://checkout.example.com"));
+
+        mockMvc.perform(
+                        post("/transactions")
+                                .header("Idempotency-Key", "checkout-key-123")
+                                .contentType("application/json")
+                                .content(
+                                        """
+                                {
+                                  "name": "Guest User",
+                                  "phone": "(11) 99999-9999",
+                                  "quantity": 20,
+                                  "comboId": 3,
+                                  "totalAmount": 10,
+                                  "price": 10
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<TransactionCreateRequest> requestCaptor =
+                ArgumentCaptor.forClass(TransactionCreateRequest.class);
+        verify(transactionService).create(eq("checkout-key-123"), requestCaptor.capture());
+        assertThat(requestCaptor.getValue().quantity()).isEqualTo(20);
+        assertThat(requestCaptor.getValue().comboId()).isEqualTo(3L);
+    }
+
+    @Test
     void createRequiresIdempotencyKey() throws Exception {
         mockMvc.perform(post("/transactions")
                         .contentType("application/json")
                         .content("{\"name\":\"Guest User\",\"phone\":\"(11) 99999-9999\",\"quantity\":2}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void createRejectsGiftMessageAboveLimit() throws Exception {
+        String longMessage = "a".repeat(281);
+
+        mockMvc.perform(post("/transactions")
+                        .header("Idempotency-Key", "checkout-key-123")
+                        .contentType("application/json")
+                        .content("{\"name\":\"Guest User\",\"phone\":\"(11) 99999-9999\",\"giftMessage\":\""
+                                + longMessage
+                                + "\",\"quantity\":2}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
     }
 
     @Test
@@ -150,7 +198,7 @@ class TransactionControllerTests {
 
     @Test
     void statusReturnsPortuguesePaymentStatusWithoutAuthentication() throws Exception {
-        when(transactionService.getStatus("external-reference-123"))
+        when(transactionService.getStatus("external-reference-123", "123"))
                 .thenReturn(new TransactionStatusResponse(
                         "external-reference-123",
                         "4821",
@@ -163,7 +211,7 @@ class TransactionControllerTests {
                         List.of("00099"),
                         3));
 
-        mockMvc.perform(get("/transactions/external-reference-123/status"))
+        mockMvc.perform(get("/transactions/external-reference-123/status").param("paymentId", "123"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.externalReference").value("external-reference-123"))
                 .andExpect(jsonPath("$.recoveryCode").value("4821"))

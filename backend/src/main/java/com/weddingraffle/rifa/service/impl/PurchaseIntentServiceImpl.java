@@ -25,6 +25,7 @@ import com.weddingraffle.rifa.service.LuckyNumberService;
 import com.weddingraffle.rifa.service.OnlinePurchaseAttempt;
 import com.weddingraffle.rifa.service.ParticipantFlagService;
 import com.weddingraffle.rifa.service.PurchaseIntentService;
+import com.weddingraffle.rifa.service.PurchasePrice;
 import com.weddingraffle.rifa.service.RecoveryCodeService;
 import java.math.BigDecimal;
 import java.util.List;
@@ -77,9 +78,9 @@ public class PurchaseIntentServiceImpl implements PurchaseIntentService {
             String requestHash,
             String name,
             String phone,
+            String giftMessage,
             int quantity,
-            BigDecimal unitPrice,
-            BigDecimal totalAmount) {
+            PurchasePrice purchasePrice) {
         Optional<PurchaseIntent> existing = purchaseIntentRepository.findByIdempotencyKey(idempotencyKey);
         if (existing.isPresent()) {
             return toOnlineAttempt(validate(existing.get(), PurchaseIntentAction.MERCADO_PAGO_CHECKOUT, requestHash));
@@ -88,24 +89,17 @@ public class PurchaseIntentServiceImpl implements PurchaseIntentService {
         String externalReference = UUID.randomUUID().toString();
         PurchaseIntent intent = new PurchaseIntent(
                 idempotencyKey, PurchaseIntentAction.MERCADO_PAGO_CHECKOUT, requestHash, externalReference);
-        purchaseIntentRepository.saveAndFlush(intent);
-
-        capacityReservationService.reserve(externalReference, quantity);
-        Transaction transaction = new Transaction(
+        intent.captureOnlineRequest(
                 name,
                 phone,
                 null,
+                giftMessage,
                 quantity,
-                unitPrice,
-                totalAmount,
-                PaymentStatus.PENDING,
-                PaymentMethod.MERCADO_PAGO,
-                externalReference);
-        transaction.assignParticipantFlag(participantFlagService.resolveForPhone(phone));
-        transaction.assignRecoveryCode(recoveryCodeService.resolveForPhone(phone));
-        transactionRepository.save(transaction);
-
-        return toOnlineAttempt(intent, transaction);
+                purchasePrice.unitPrice(),
+                purchasePrice.totalAmount(),
+                purchasePrice.combo());
+        purchaseIntentRepository.saveAndFlush(intent);
+        return toOnlineAttempt(intent);
     }
 
     @Override
@@ -120,15 +114,51 @@ public class PurchaseIntentServiceImpl implements PurchaseIntentService {
             return readResponse(intent, TransactionCreateResponse.class);
         }
 
-        Transaction transaction = findTransaction(intent);
-        transaction.assignPreference(preference.preferenceId(), preference.checkoutUrl(), preference.collectorId());
         TransactionCreateResponse response = new TransactionCreateResponse(
-                transaction.getExternalReference(),
-                transaction.getRecoveryCode(),
-                preference.preferenceId(),
-                preference.checkoutUrl());
-        intent.complete(writeResponse(response));
+                intent.getExternalReference(), "", preference.preferenceId(), preference.checkoutUrl());
+        intent.completeOnlineCheckout(
+                preference.preferenceId(), preference.checkoutUrl(), preference.collectorId(), writeResponse(response));
         return response;
+    }
+
+    @Override
+    @Transactional
+    public Transaction materializeOnlineTransaction(String externalReference) {
+        Optional<Transaction> existingTransaction = transactionRepository.findByExternalReference(externalReference);
+        if (existingTransaction.isPresent()) {
+            return existingTransaction.get();
+        }
+
+        PurchaseIntent intent = purchaseIntentRepository
+                .findLockedByExternalReference(externalReference)
+                .orElseThrow(() -> new ResourceNotFoundException("Purchase intent not found."));
+        if (intent.getAction() != PurchaseIntentAction.MERCADO_PAGO_CHECKOUT
+                || intent.getStatus() != PurchaseIntentStatus.COMPLETED) {
+            throw new ResourceNotFoundException("Transaction not found.");
+        }
+
+        existingTransaction = transactionRepository.findByExternalReference(externalReference);
+        if (existingTransaction.isPresent()) {
+            return existingTransaction.get();
+        }
+
+        capacityReservationService.reserve(externalReference, intent.getQuantity());
+        Transaction transaction = new Transaction(
+                intent.getParticipantName(),
+                intent.getParticipantPhone(),
+                intent.getParticipantEmail(),
+                intent.getGiftMessage(),
+                intent.getQuantity(),
+                intent.getUnitPrice(),
+                intent.getTotalAmount(),
+                PaymentStatus.PENDING,
+                PaymentMethod.MERCADO_PAGO,
+                externalReference);
+        transaction.assignPreference(intent.getMpPreferenceId(), intent.getMpCheckoutUrl(), intent.getMpCollectorId());
+        transaction.assignRaffleCombo(intent.getRaffleCombo());
+        transaction.assignParticipantFlag(participantFlagService.resolveForPhone(intent.getParticipantPhone()));
+        transaction.assignRecoveryCode(recoveryCodeService.resolveForPhone(intent.getParticipantPhone()));
+        return transactionRepository.save(transaction);
     }
 
     @Override
@@ -151,6 +181,7 @@ public class PurchaseIntentServiceImpl implements PurchaseIntentService {
             String name,
             String phone,
             String email,
+            String giftMessage,
             int quantity,
             BigDecimal unitPrice,
             BigDecimal totalAmount) {
@@ -173,6 +204,7 @@ public class PurchaseIntentServiceImpl implements PurchaseIntentService {
                 name,
                 phone,
                 email,
+                giftMessage,
                 quantity,
                 unitPrice,
                 totalAmount,
@@ -213,26 +245,18 @@ public class PurchaseIntentServiceImpl implements PurchaseIntentService {
     }
 
     private OnlinePurchaseAttempt toOnlineAttempt(PurchaseIntent intent) {
-        return toOnlineAttempt(intent, findTransaction(intent));
-    }
-
-    private OnlinePurchaseAttempt toOnlineAttempt(PurchaseIntent intent, Transaction transaction) {
         TransactionCreateResponse completedResponse = intent.getStatus() == PurchaseIntentStatus.COMPLETED
                 ? readResponse(intent, TransactionCreateResponse.class)
                 : null;
         CheckoutPreferenceRequest preferenceRequest = new CheckoutPreferenceRequest(
-                transaction.getName(),
-                transaction.getEmail(),
-                transaction.getQuantity(),
-                transaction.getUnitPrice(),
-                transaction.getExternalReference());
+                intent.getParticipantName(),
+                intent.getParticipantEmail(),
+                intent.getQuantity(),
+                intent.getUnitPrice(),
+                intent.getTotalAmount(),
+                intent.getRaffleCombo() != null,
+                intent.getExternalReference());
         return new OnlinePurchaseAttempt(preferenceRequest, completedResponse);
-    }
-
-    private Transaction findTransaction(PurchaseIntent intent) {
-        return transactionRepository
-                .findByExternalReference(intent.getExternalReference())
-                .orElseThrow(() -> new ResourceNotFoundException("Purchase transaction not found."));
     }
 
     private static PurchaseIntent validate(

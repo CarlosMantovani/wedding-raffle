@@ -179,7 +179,7 @@ class PaymentApprovalAtomicityIntegrationTests {
 
         runConcurrently(
                 () -> transactionService.processPaymentNotification(PAYMENT_ID),
-                () -> transactionService.getStatus(created.externalReference()));
+                () -> transactionService.getStatus(created.externalReference(), null));
 
         assertSingleCompletedBatch(created, 2);
         assertThat(generatedCandidateCalls).hasValue(QUANTITY);
@@ -193,7 +193,7 @@ class PaymentApprovalAtomicityIntegrationTests {
         clearInvocations(paymentProviderClient);
         when(paymentProviderClient.getPayment(PAYMENT_ID)).thenReturn(approved);
 
-        runConcurrently(workers, () -> transactionService.getStatus(created.externalReference()));
+        runConcurrently(workers, () -> transactionService.getStatus(created.externalReference(), null));
 
         verify(paymentProviderClient, times(1)).getPayment(PAYMENT_ID);
         assertSingleCompletedBatch(created, 1);
@@ -220,7 +220,8 @@ class PaymentApprovalAtomicityIntegrationTests {
 
         var executor = Executors.newSingleThreadExecutor();
         try {
-            Future<?> delayedPolling = executor.submit(() -> transactionService.getStatus(created.externalReference()));
+            Future<?> delayedPolling =
+                    executor.submit(() -> transactionService.getStatus(created.externalReference(), null));
             assertThat(pollingFetchStarted.await(10, TimeUnit.SECONDS)).isTrue();
             transactionService.processPaymentNotification(PAYMENT_ID);
             releasePollingFetch.countDown();
@@ -350,9 +351,11 @@ class PaymentApprovalAtomicityIntegrationTests {
     }
 
     private TransactionCreateResponse createTransaction() {
-        return transactionService.create(
+        TransactionCreateResponse created = transactionService.create(
                 UUID.randomUUID().toString(),
                 new TransactionCreateRequest("Atomic Buyer", "(11) 99999-9999", QUANTITY));
+        transactionService.getStatus(created.externalReference(), null);
+        return created;
     }
 
     private PaymentProviderPayment payment(

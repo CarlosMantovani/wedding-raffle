@@ -378,7 +378,7 @@ class PaymentLedgerIntegrationTests {
 
         runConcurrently(
                 () -> transactionService.processPaymentNotification("payment-1"),
-                () -> transactionService.getStatus(created.externalReference()));
+                () -> transactionService.getStatus(created.externalReference(), null));
 
         assertThat(transaction(created).getStatus()).isEqualTo(PaymentStatus.APPROVED);
         assertThat(luckyNumberRepository.count()).isEqualTo(2);
@@ -470,7 +470,10 @@ class PaymentLedgerIntegrationTests {
     }
 
     private TransactionCreateResponse createTransaction(String key, int quantity) {
-        return transactionService.create(key, new TransactionCreateRequest("Guest User", "(11) 99999-9999", quantity));
+        TransactionCreateResponse created =
+                transactionService.create(key, new TransactionCreateRequest("Guest User", "(11) 99999-9999", quantity));
+        transactionService.getStatus(created.externalReference(), null);
+        return created;
     }
 
     private void process(PaymentProviderPayment payment) {

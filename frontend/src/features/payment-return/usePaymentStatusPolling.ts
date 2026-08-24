@@ -49,11 +49,11 @@ function getOrCreatePollingStartedAt(externalReference: string, now: number) {
   return now;
 }
 
-export function usePaymentStatusPolling(externalReference: string) {
+export function usePaymentStatusPolling(externalReference: string, paymentId = '') {
   const queryClient = useQueryClient();
   const queryKey = useMemo(
-    () => ['transaction-status', externalReference] as const,
-    [externalReference],
+    () => ['transaction-status', externalReference, paymentId] as const,
+    [externalReference, paymentId],
   );
   const [pollingStartedAt] = useState(() =>
     getOrCreatePollingStartedAt(externalReference, Date.now()),
@@ -82,7 +82,7 @@ export function usePaymentStatusPolling(externalReference: string) {
         }
         return Promise.reject(new Error('Payment polling window expired.'));
       }
-      return transactionService.getStatus(externalReference, signal);
+      return transactionService.getStatus(externalReference, paymentId, signal);
     },
     networkMode: 'online',
     refetchInterval: (query) => {

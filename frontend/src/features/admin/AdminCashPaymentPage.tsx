@@ -17,6 +17,7 @@ import { RecoveryCodeContent } from '../payment-return/PaymentReturnPage';
 import { cashPaymentSchema, type CashPaymentFormData } from './schemas';
 
 const CASH_IDEMPOTENCY_ACTION = 'cash-registration';
+const GIFT_MESSAGE_MAX_LENGTH = 280;
 
 export function AdminCashPaymentPage() {
   const [isCurrentLuckyNumberListExpanded, setIsCurrentLuckyNumberListExpanded] = useState(false);
@@ -26,8 +27,9 @@ export function AdminCashPaymentPage() {
     formState: { errors, isValid },
     handleSubmit,
     register,
+    watch,
   } = useForm<CashPaymentFormData>({
-    defaultValues: { name: '', phone: '', quantity: 1 },
+    defaultValues: { giftMessage: '', name: '', phone: '', quantity: 1 },
     mode: 'onChange',
     resolver: zodResolver(cashPaymentSchema),
   });
@@ -43,9 +45,11 @@ export function AdminCashPaymentPage() {
   });
 
   const submitCashPayment = (data: CashPaymentFormData) => {
+    const trimmedGiftMessage = data.giftMessage?.trim();
     const request = {
       name: data.name.trim(),
       phone: normalizePhoneNumber(data.phone),
+      ...(trimmedGiftMessage ? { giftMessage: trimmedGiftMessage } : {}),
       quantity: data.quantity,
     };
     createCashMutation.mutate({
@@ -57,6 +61,7 @@ export function AdminCashPaymentPage() {
   const previousLuckyNumbers = createCashMutation.data?.previousLuckyNumbers ?? [];
   const totalLuckyNumbers =
     createCashMutation.data?.totalLuckyNumbers ?? createdLuckyNumbers.length;
+  const giftMessageLength = watch('giftMessage')?.length ?? 0;
 
   return (
     <main className="min-h-screen bg-cream text-charcoal">
@@ -122,6 +127,27 @@ export function AdminCashPaymentPage() {
               error={errors.quantity?.message}
               {...register('quantity')}
             />
+
+            <div>
+              <label className="block text-sm font-semibold text-charcoal" htmlFor="cash-gift-message">
+                Mensagem para o casal (opcional)
+              </label>
+              <textarea
+                className="mt-2 min-h-28 w-full resize-none rounded-lg border border-line bg-white px-4 py-3 text-base text-charcoal outline-none transition placeholder:text-warm-gray/60 focus:border-gold focus:ring-2 focus:ring-gold/20"
+                id="cash-gift-message"
+                maxLength={GIFT_MESSAGE_MAX_LENGTH}
+                placeholder="Mensagem do convidado"
+                {...register('giftMessage')}
+              />
+              <p className="mt-2 text-right text-xs font-semibold text-warm-gray">
+                {giftMessageLength}/{GIFT_MESSAGE_MAX_LENGTH}
+              </p>
+              {errors.giftMessage ? (
+                <p className="mt-2 text-sm text-terracotta-dark" role="alert">
+                  {errors.giftMessage.message}
+                </p>
+              ) : null}
+            </div>
 
             {createCashMutation.isError ? (
               <p
@@ -244,6 +270,7 @@ interface CashPurchaseSubmission {
     name: string;
     phone: string;
     quantity: number;
+    giftMessage?: string;
   };
 }
 

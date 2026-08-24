@@ -4,6 +4,8 @@ import org.springframework.util.StringUtils;
 
 public final class ParticipantNormalizer {
 
+    private static final int MAX_GIFT_MESSAGE_LENGTH = 280;
+
     private ParticipantNormalizer() {}
 
     public static String normalizeName(String name) {
@@ -12,6 +14,17 @@ public final class ParticipantNormalizer {
 
     public static String normalizeEmail(String email) {
         return StringUtils.hasText(email) ? email.trim().toLowerCase() : null;
+    }
+
+    public static String normalizeGiftMessage(String giftMessage) {
+        if (!StringUtils.hasText(giftMessage)) {
+            return null;
+        }
+        String normalized = giftMessage.trim();
+        if (normalized.length() > MAX_GIFT_MESSAGE_LENGTH) {
+            throw new IllegalArgumentException("Gift message must not exceed 280 characters.");
+        }
+        return normalized;
     }
 
     public static String normalizePhone(String phone) {
