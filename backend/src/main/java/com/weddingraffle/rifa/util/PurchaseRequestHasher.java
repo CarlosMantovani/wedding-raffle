@@ -29,6 +29,15 @@ public class PurchaseRequestHasher {
         return hash(PurchaseIntentAction.MERCADO_PAGO_CHECKOUT, List.of(name, phone, Integer.toString(quantity)));
     }
 
+    public String online(String name, String phone, int quantity, Long comboId) {
+        if (comboId == null) {
+            return online(name, phone, quantity);
+        }
+        return hash(
+                PurchaseIntentAction.MERCADO_PAGO_CHECKOUT,
+                List.of(name, phone, Integer.toString(quantity), "combo:" + comboId));
+    }
+
     public String cash(String name, String phone, String email, int quantity) {
         return hash(
                 PurchaseIntentAction.CASH_REGISTRATION,

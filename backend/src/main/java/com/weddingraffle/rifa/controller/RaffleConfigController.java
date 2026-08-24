@@ -1,5 +1,6 @@
 package com.weddingraffle.rifa.controller;
 
+import com.weddingraffle.rifa.dto.RaffleComboUpdateRequest;
 import com.weddingraffle.rifa.dto.RaffleConfigResponse;
 import com.weddingraffle.rifa.dto.ScheduledDrawAtUpdateRequest;
 import com.weddingraffle.rifa.dto.UnitPriceUpdateRequest;
@@ -8,6 +9,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -40,5 +42,12 @@ public class RaffleConfigController {
     public ResponseEntity<RaffleConfigResponse> updateScheduledDrawAt(
             @Valid @RequestBody ScheduledDrawAtUpdateRequest request) {
         return ResponseEntity.ok(raffleConfigService.updateScheduledDrawAt(request.scheduledDrawAt()));
+    }
+
+    @Operation(summary = "Update raffle combo price, status and display order")
+    @PutMapping("/combos/{comboId}")
+    public ResponseEntity<RaffleConfigResponse> updateCombo(
+            @PathVariable Long comboId, @Valid @RequestBody RaffleComboUpdateRequest request) {
+        return ResponseEntity.ok(raffleConfigService.updateCombo(comboId, request));
     }
 }
