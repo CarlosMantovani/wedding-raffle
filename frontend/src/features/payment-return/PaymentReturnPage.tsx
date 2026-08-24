@@ -1,4 +1,3 @@
-import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, Check, Copy, Download, Gift, Loader2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
@@ -8,6 +7,7 @@ import { Card } from '../../components/ui/Card';
 import { FlagEmoji } from '../../components/ui/FlagEmoji';
 import { publicMessages } from '../../content/messages';
 import { transactionService } from '../../services/transactionService';
+import { usePaymentStatusPolling } from './usePaymentStatusPolling';
 
 function getExternalReference(searchParams: URLSearchParams) {
   return searchParams.get('external_reference') ?? searchParams.get('externalReference') ?? '';
@@ -17,18 +17,20 @@ export function PaymentReturnPage() {
   const searchParams = new URLSearchParams(window.location.search);
   const externalReference = getExternalReference(searchParams);
 
-  const statusQuery = useQuery({
-    enabled: Boolean(externalReference),
-    queryKey: ['transaction-status', externalReference],
-    queryFn: () => transactionService.getStatus(externalReference),
-    refetchInterval: (query) => (query.state.data?.status === 'PENDENTE' ? 5000 : false),
-  });
+  const { checkStatusNow, isOnline, isVisible, pollingExpired, statusQuery } =
+    usePaymentStatusPolling(externalReference);
 
   if (!externalReference) {
-    return <PaymentState title="Não foi possível localizar sua compra" message={publicMessages.missingReference} tone="error" />;
+    return (
+      <PaymentState
+        title="Não foi possível localizar sua compra"
+        message={publicMessages.missingReference}
+        tone="error"
+      />
+    );
   }
 
-  if (statusQuery.isLoading) {
+  if (statusQuery.isLoading && isOnline && isVisible && !pollingExpired) {
     return (
       <PaymentState
         icon={<Loader2 aria-hidden="true" className="h-10 w-10 animate-spin text-terracotta" />}
@@ -39,8 +41,36 @@ export function PaymentReturnPage() {
     );
   }
 
-  if (statusQuery.isError || !statusQuery.data) {
-    return <PaymentState title="Não foi possível confirmar o pagamento" message={publicMessages.genericError} tone="error" />;
+  if (!statusQuery.data) {
+    if (!isOnline) {
+      return (
+        <PaymentState
+          title="Consulta pausada"
+          message={publicMessages.paymentPollingOffline}
+          tone="pending"
+        />
+      );
+    }
+    if (pollingExpired) {
+      return (
+        <PaymentState
+          checking={statusQuery.isFetching}
+          message={publicMessages.paymentPollingStopped}
+          onCheckStatus={checkStatusNow}
+          title="Pagamento ainda não confirmado"
+          tone="pending"
+        />
+      );
+    }
+    return (
+      <PaymentState
+        checking={statusQuery.isFetching}
+        message={publicMessages.paymentStatusUnavailable}
+        onCheckStatus={checkStatusNow}
+        title="Não foi possível confirmar o status neste momento"
+        tone="neutral"
+      />
+    );
   }
 
   const transaction = statusQuery.data;
@@ -65,12 +95,16 @@ export function PaymentReturnPage() {
           </div>
 
           <Card className="border border-[#EEE6DF] bg-white/90 text-center shadow-none">
-            <p className="text-xs font-bold uppercase tracking-wide text-terracotta">Sua bandeira</p>
+            <p className="text-xs font-bold uppercase tracking-wide text-terracotta">
+              Sua bandeira
+            </p>
             <div className="mt-3 flex items-center justify-center gap-3">
               <span className="grid h-14 w-14 place-items-center rounded-full bg-blush">
                 <FlagEmoji className="h-9 w-9" emoji={transaction.participantFlagEmoji} />
               </span>
-              <span className="font-serif text-2xl font-bold text-charcoal">{transaction.participantFlagName}</span>
+              <span className="font-serif text-2xl font-bold text-charcoal">
+                {transaction.participantFlagName}
+              </span>
             </div>
           </Card>
 
@@ -86,7 +120,9 @@ export function PaymentReturnPage() {
                     </div>
                     <div className="flex items-center justify-between gap-3">
                       <dt className="text-warm-gray">Números adquiridos agora:</dt>
-                      <dd className="font-bold text-terracotta">{transaction.luckyNumbers.length}</dd>
+                      <dd className="font-bold text-terracotta">
+                        {transaction.luckyNumbers.length}
+                      </dd>
                     </div>
                     <div className="flex items-center justify-between gap-3">
                       <dt className="text-warm-gray">Total de números com esta compra:</dt>
@@ -94,13 +130,25 @@ export function PaymentReturnPage() {
                     </div>
                   </dl>
                 </div>
-                <LuckyNumberGroup title="Números adquiridos agora" numbers={transaction.luckyNumbers} tone="highlight" />
-                <LuckyNumberGroup title="Números adquiridos anteriormente" numbers={previousLuckyNumbers} tone="muted" />
+                <LuckyNumberGroup
+                  title="Números adquiridos agora"
+                  numbers={transaction.luckyNumbers}
+                  tone="highlight"
+                />
+                <LuckyNumberGroup
+                  title="Números adquiridos anteriormente"
+                  numbers={previousLuckyNumbers}
+                  tone="muted"
+                />
               </div>
             ) : (
               <>
                 <h2 className="font-serif text-lg font-semibold">Seus números da sorte</h2>
-                <LuckyNumberList className="mt-5" numbers={transaction.luckyNumbers} tone="highlight" />
+                <LuckyNumberList
+                  className="mt-5"
+                  numbers={transaction.luckyNumbers}
+                  tone="highlight"
+                />
               </>
             )}
           </Card>
@@ -122,6 +170,40 @@ export function PaymentReturnPage() {
   }
 
   if (transaction.status === 'PENDENTE') {
+    if (statusQuery.isError) {
+      return (
+        <PaymentState
+          checking={statusQuery.isFetching}
+          message={publicMessages.paymentStatusUnavailable}
+          onCheckStatus={checkStatusNow}
+          recoveryCode={transaction.recoveryCode}
+          title="Não foi possível confirmar o status neste momento"
+          tone="pending"
+        />
+      );
+    }
+    if (!isOnline) {
+      return (
+        <PaymentState
+          recoveryCode={transaction.recoveryCode}
+          title="Consulta pausada"
+          message={publicMessages.paymentPollingOffline}
+          tone="pending"
+        />
+      );
+    }
+    if (pollingExpired) {
+      return (
+        <PaymentState
+          checking={statusQuery.isFetching}
+          message={publicMessages.paymentPollingStopped}
+          onCheckStatus={checkStatusNow}
+          recoveryCode={transaction.recoveryCode}
+          title="Pagamento pendente"
+          tone="pending"
+        />
+      );
+    }
     return (
       <PaymentState
         recoveryCode={transaction.recoveryCode}
@@ -144,7 +226,9 @@ export function PaymentReturnPage() {
   }
 
   if (transaction.status === 'CANCELADO') {
-    return <PaymentState title="Pagamento cancelado" message={publicMessages.cancelled} tone="error" />;
+    return (
+      <PaymentState title="Pagamento cancelado" message={publicMessages.cancelled} tone="error" />
+    );
   }
 
   return <PaymentState title="Pagamento recusado" message={publicMessages.rejected} tone="error" />;
@@ -172,11 +256,12 @@ export function RecoveryCodeContent({ recoveryCode }: { recoveryCode: string }) 
       <div className="space-y-2">
         <h2 className="text-sm font-bold">Código de consulta</h2>
         <p className="mt-1 text-sm leading-relaxed text-warm-gray">
-          Este código é único para todas as suas compras e não muda. Guarde para consultar seus números depois pelo telefone
-          na tela inicial.
+          Este código é único para todas as suas compras e não muda. Guarde para consultar seus
+          números depois pelo telefone na tela inicial.
         </p>
         <p className="text-sm leading-relaxed text-warm-gray">
-          Não compartilhe com ninguém: quem tiver esse código junto com seu telefone também poderá consultar seus números.
+          Não compartilhe com ninguém: quem tiver esse código junto com seu telefone também poderá
+          consultar seus números.
         </p>
       </div>
       <div className="flex shrink-0 items-center gap-2 self-start sm:self-auto">
@@ -189,7 +274,11 @@ export function RecoveryCodeContent({ recoveryCode }: { recoveryCode: string }) 
           onClick={handleCopy}
           type="button"
         >
-          {copied ? <Check aria-hidden="true" className="h-5 w-5" /> : <Copy aria-hidden="true" className="h-5 w-5" />}
+          {copied ? (
+            <Check aria-hidden="true" className="h-5 w-5" />
+          ) : (
+            <Copy aria-hidden="true" className="h-5 w-5" />
+          )}
         </button>
       </div>
     </div>
@@ -209,7 +298,9 @@ function LuckyNumberGroup({
     <section aria-label={title}>
       <div className="mb-3 flex items-center justify-between gap-3">
         <h3 className="text-sm font-bold text-charcoal">{title}</h3>
-        <span className="shrink-0 rounded-full bg-cream px-3 py-1 text-xs font-bold text-warm-gray">{numbers.length}</span>
+        <span className="shrink-0 rounded-full bg-cream px-3 py-1 text-xs font-bold text-warm-gray">
+          {numbers.length}
+        </span>
       </div>
       <LuckyNumberList numbers={numbers} tone={tone} />
     </section>
@@ -230,7 +321,10 @@ function LuckyNumberList({
   return (
     <div className={`flex flex-wrap justify-center gap-3 ${className}`}>
       {numbers.map((number) => (
-        <span className={`rounded-lg px-4 py-2 text-sm font-bold shadow-sm ${toneClass}`} key={number}>
+        <span
+          className={`rounded-lg px-4 py-2 text-sm font-bold shadow-sm ${toneClass}`}
+          key={number}
+        >
           {number}
         </span>
       ))}
@@ -270,15 +364,32 @@ export function PdfDownloadContent({ externalReference }: { externalReference: s
 }
 
 interface PaymentStateProps {
+  checking?: boolean;
   icon?: ReactNode;
   message: string;
+  onCheckStatus?: () => void;
   recoveryCode?: string;
   title: string;
   tone: 'confirmed' | 'error' | 'neutral' | 'pending';
 }
 
-function PaymentState({ icon, message, recoveryCode, title, tone }: PaymentStateProps) {
-  const iconColor = tone === 'pending' ? 'text-gold' : tone === 'confirmed' ? 'text-green' : tone === 'neutral' ? 'text-terracotta' : 'text-terracotta-dark';
+function PaymentState({
+  checking = false,
+  icon,
+  message,
+  onCheckStatus,
+  recoveryCode,
+  title,
+  tone,
+}: PaymentStateProps) {
+  const iconColor =
+    tone === 'pending'
+      ? 'text-gold'
+      : tone === 'confirmed'
+        ? 'text-green'
+        : tone === 'neutral'
+          ? 'text-terracotta'
+          : 'text-terracotta-dark';
 
   return (
     <main className="min-h-screen bg-cream px-6 pb-16 pt-16 text-charcoal">
@@ -293,6 +404,17 @@ function PaymentState({ icon, message, recoveryCode, title, tone }: PaymentState
         </div>
         {recoveryCode ? <RecoveryCodeCard recoveryCode={recoveryCode} /> : null}
         <div className="flex w-full flex-col gap-3">
+          {onCheckStatus ? (
+            <button
+              className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-terracotta px-5 py-3 text-sm font-semibold text-white shadow-button transition hover:bg-terracotta-dark disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={checking}
+              onClick={onCheckStatus}
+              type="button"
+            >
+              {checking ? <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" /> : null}
+              {checking ? 'Consultando status' : 'Consultar status agora'}
+            </button>
+          ) : null}
           {tone === 'error' ? (
             <a
               className="inline-flex min-h-12 w-full items-center justify-center rounded-lg bg-terracotta px-5 py-3 text-sm font-semibold text-white shadow-button transition hover:bg-terracotta-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta"

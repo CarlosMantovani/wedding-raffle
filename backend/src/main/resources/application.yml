@@ -26,6 +26,9 @@ server:
 
 app:
   frontend-origin: ${FRONTEND_ORIGIN}
+  payment-status-reconciliation:
+    minimum-interval-millis: ${PAYMENT_STATUS_RECONCILIATION_MINIMUM_INTERVAL_MILLIS:5000}
+    lease-duration-millis: ${PAYMENT_STATUS_RECONCILIATION_LEASE_DURATION_MILLIS:30000}
   lucky-number-allocation:
     chunk-size: ${LUCKY_NUMBER_ALLOCATION_CHUNK_SIZE:1000}
     max-conflict-retries: ${LUCKY_NUMBER_ALLOCATION_MAX_CONFLICT_RETRIES:8}

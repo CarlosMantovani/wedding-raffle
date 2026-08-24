@@ -60,6 +60,9 @@ class TransactionServiceImplTests {
     private PaymentReconciliationService paymentReconciliationService;
 
     @Mock
+    private PendingPaymentReconciliationCoordinator pendingPaymentReconciliationCoordinator;
+
+    @Mock
     private PurchaseIntentService purchaseIntentService;
 
     private final PurchaseRequestHasher purchaseRequestHasher = new PurchaseRequestHasher();
@@ -341,12 +344,11 @@ class TransactionServiceImplTests {
         when(transactionRepository.findByExternalReference("external-reference-123"))
                 .thenReturn(Optional.of(transaction));
         PaymentProviderPayment payment = payment("123", "external-reference-123", "approved");
-        when(paymentProviderClient.getPayment("123")).thenReturn(payment);
-        when(paymentReconciliationService.reconcile("123", "external-reference-123", payment))
+        when(pendingPaymentReconciliationCoordinator.reconcileIfDue(transaction))
                 .thenAnswer(invocation -> {
                     transaction.markPaymentState(
                             PaymentStatus.APPROVED, "123", payment.dateLastUpdated(), (short) 40, 2L);
-                    return com.weddingraffle.rifa.entity.PaymentEventProcessingStatus.APPLIED;
+                    return true;
                 });
         when(luckyNumberService.findNumbers("external-reference-123")).thenReturn(List.of("00001", "00002"));
         when(luckyNumberService.findPreviousApprovedNumbers("0000000000", "external-reference-123"))
@@ -355,7 +357,7 @@ class TransactionServiceImplTests {
         var response = transactionService.getStatus("external-reference-123");
 
         assertThat(response.status()).isEqualTo(PaymentStatusResponse.APROVADO);
-        verify(paymentReconciliationService).reconcile("123", "external-reference-123", payment);
+        verify(pendingPaymentReconciliationCoordinator).reconcileIfDue(transaction);
     }
 
     @Test
@@ -393,6 +395,7 @@ class TransactionServiceImplTests {
                 paymentProviderClient,
                 luckyNumberService,
                 paymentReconciliationService,
+                pendingPaymentReconciliationCoordinator,
                 purchaseIntentService,
                 purchaseRequestHasher);
     }

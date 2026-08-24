@@ -40,6 +40,7 @@ public class TransactionServiceImpl implements TransactionService {
     private final PaymentProviderClient paymentProviderClient;
     private final LuckyNumberService luckyNumberService;
     private final PaymentReconciliationService paymentReconciliationService;
+    private final PendingPaymentReconciliationCoordinator pendingPaymentReconciliationCoordinator;
     private final PurchaseIntentService purchaseIntentService;
     private final PurchaseRequestHasher purchaseRequestHasher;
 
@@ -49,6 +50,7 @@ public class TransactionServiceImpl implements TransactionService {
             PaymentProviderClient paymentProviderClient,
             LuckyNumberService luckyNumberService,
             PaymentReconciliationService paymentReconciliationService,
+            PendingPaymentReconciliationCoordinator pendingPaymentReconciliationCoordinator,
             PurchaseIntentService purchaseIntentService,
             PurchaseRequestHasher purchaseRequestHasher) {
         this.raffleConfigService = raffleConfigService;
@@ -56,6 +58,7 @@ public class TransactionServiceImpl implements TransactionService {
         this.paymentProviderClient = paymentProviderClient;
         this.luckyNumberService = luckyNumberService;
         this.paymentReconciliationService = paymentReconciliationService;
+        this.pendingPaymentReconciliationCoordinator = pendingPaymentReconciliationCoordinator;
         this.purchaseIntentService = purchaseIntentService;
         this.purchaseRequestHasher = purchaseRequestHasher;
     }
@@ -159,9 +162,7 @@ public class TransactionServiceImpl implements TransactionService {
     }
 
     private void refreshPendingTransaction(Transaction transaction) {
-        PaymentProviderPayment payment = paymentProviderClient.getPayment(transaction.getMpPaymentId());
-        paymentReconciliationService.reconcile(
-                transaction.getMpPaymentId(), transaction.getExternalReference(), payment);
+        pendingPaymentReconciliationCoordinator.reconcileIfDue(transaction);
     }
 
     private TransactionStatusResponse toStatusResponse(Transaction transaction) {

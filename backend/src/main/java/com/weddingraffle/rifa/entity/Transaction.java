@@ -11,6 +11,7 @@ import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.OffsetDateTime;
+import java.util.UUID;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -76,6 +77,12 @@ public class Transaction {
     private Long currentPaymentEventId;
 
     private OffsetDateTime luckyNumbersGeneratedAt;
+
+    private OffsetDateTime paymentReconciliationAttemptedAt;
+
+    private OffsetDateTime paymentReconciliationLeaseUntil;
+
+    private UUID paymentReconciliationLeaseToken;
 
     @Column(nullable = false, length = 50)
     private String participantFlagCode;
@@ -228,6 +235,18 @@ public class Transaction {
 
     public OffsetDateTime getLuckyNumbersGeneratedAt() {
         return luckyNumbersGeneratedAt;
+    }
+
+    public OffsetDateTime getPaymentReconciliationAttemptedAt() {
+        return paymentReconciliationAttemptedAt;
+    }
+
+    public OffsetDateTime getPaymentReconciliationLeaseUntil() {
+        return paymentReconciliationLeaseUntil;
+    }
+
+    public UUID getPaymentReconciliationLeaseToken() {
+        return paymentReconciliationLeaseToken;
     }
 
     public String getParticipantFlagCode() {

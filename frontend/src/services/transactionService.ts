@@ -24,9 +24,13 @@ export const transactionService = {
     return response.data;
   },
 
-  async getStatus(externalReference: string): Promise<TransactionStatusResponse> {
+  async getStatus(
+    externalReference: string,
+    signal?: AbortSignal,
+  ): Promise<TransactionStatusResponse> {
     const response = await apiClient.get<TransactionStatusResponse>(
       `/transactions/${externalReference}/status`,
+      { signal },
     );
     return response.data;
   },
