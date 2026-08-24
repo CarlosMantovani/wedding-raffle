@@ -122,6 +122,20 @@ class TransactionControllerTests {
     }
 
     @Test
+    void createRejectsGiftMessageAboveLimit() throws Exception {
+        String longMessage = "a".repeat(281);
+
+        mockMvc.perform(post("/transactions")
+                        .header("Idempotency-Key", "checkout-key-123")
+                        .contentType("application/json")
+                        .content("{\"name\":\"Guest User\",\"phone\":\"(11) 99999-9999\",\"giftMessage\":\""
+                                + longMessage
+                                + "\",\"quantity\":2}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
     void createRejectsSameIdempotencyKeyWithDifferentPayload() throws Exception {
         when(transactionService.create(eq("checkout-key-123"), any()))
                 .thenThrow(new IdempotencyConflictException(
@@ -150,7 +164,7 @@ class TransactionControllerTests {
 
     @Test
     void statusReturnsPortuguesePaymentStatusWithoutAuthentication() throws Exception {
-        when(transactionService.getStatus("external-reference-123"))
+        when(transactionService.getStatus("external-reference-123", "123"))
                 .thenReturn(new TransactionStatusResponse(
                         "external-reference-123",
                         "4821",
@@ -163,7 +177,7 @@ class TransactionControllerTests {
                         List.of("00099"),
                         3));
 
-        mockMvc.perform(get("/transactions/external-reference-123/status"))
+        mockMvc.perform(get("/transactions/external-reference-123/status").param("paymentId", "123"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.externalReference").value("external-reference-123"))
                 .andExpect(jsonPath("$.recoveryCode").value("4821"))

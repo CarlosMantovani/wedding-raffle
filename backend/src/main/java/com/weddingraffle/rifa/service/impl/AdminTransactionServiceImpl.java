@@ -1,5 +1,6 @@
 package com.weddingraffle.rifa.service.impl;
 
+import com.weddingraffle.rifa.dto.AdminGiftMessageResponse;
 import com.weddingraffle.rifa.dto.AdminTransactionResponse;
 import com.weddingraffle.rifa.dto.AdminTransactionSummaryResponse;
 import com.weddingraffle.rifa.dto.CapacityReviewDecision;
@@ -85,25 +86,44 @@ public class AdminTransactionServiceImpl implements AdminTransactionService {
         String name = ParticipantNormalizer.normalizeName(request.name());
         String phone = ParticipantNormalizer.normalizePhone(request.phone());
         String email = ParticipantNormalizer.normalizeEmail(request.email());
-        String requestHash = purchaseRequestHasher.cash(name, phone, email, request.quantity());
+        String giftMessage = ParticipantNormalizer.normalizeGiftMessage(request.giftMessage());
+        String requestHash = purchaseRequestHasher.cash(name, phone, email, giftMessage, request.quantity());
 
         return purchaseIntentService
                 .findCash(normalizedIdempotencyKey, requestHash)
                 .orElseGet(() -> createCashTransaction(
-                        normalizedIdempotencyKey, requestHash, name, phone, email, request.quantity()));
+                        normalizedIdempotencyKey, requestHash, name, phone, email, giftMessage, request.quantity()));
     }
 
     private CashTransactionCreateResponse createCashTransaction(
-            String idempotencyKey, String requestHash, String name, String phone, String email, int quantity) {
+            String idempotencyKey,
+            String requestHash,
+            String name,
+            String phone,
+            String email,
+            String giftMessage,
+            int quantity) {
         ensureDrawIsOpen();
         BigDecimal unitPrice = raffleConfigService.getCurrentUnitPrice();
         BigDecimal totalAmount = unitPrice.multiply(BigDecimal.valueOf(quantity));
         try {
             return purchaseIntentService.createCash(
-                    idempotencyKey, requestHash, name, phone, email, quantity, unitPrice, totalAmount);
+                    idempotencyKey, requestHash, name, phone, email, giftMessage, quantity, unitPrice, totalAmount);
         } catch (DataIntegrityViolationException exception) {
             return purchaseIntentService.findCash(idempotencyKey, requestHash).orElseThrow(() -> exception);
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<AdminGiftMessageResponse> listGiftMessages(Pageable pageable) {
+        return transactionRepository
+                .findByGiftMessageIsNotNullAndGiftMessageNot("", pageable)
+                .map(transaction -> new AdminGiftMessageResponse(
+                        transaction.getExternalReference(),
+                        transaction.getCreatedAt(),
+                        transaction.getName(),
+                        transaction.getGiftMessage()));
     }
 
     @Override
@@ -170,6 +190,7 @@ public class AdminTransactionServiceImpl implements AdminTransactionService {
                 transaction.getName(),
                 transaction.getPhone(),
                 transaction.getEmail(),
+                transaction.getGiftMessage(),
                 transaction.getPaymentMethod(),
                 transaction.getCapacityReviewStatus(),
                 transaction.getQuantity(),

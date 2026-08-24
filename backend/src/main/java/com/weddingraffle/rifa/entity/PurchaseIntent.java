@@ -8,6 +8,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
 @Entity
@@ -37,6 +38,32 @@ public class PurchaseIntent {
 
     @Column(columnDefinition = "TEXT")
     private String responsePayload;
+
+    private String participantName;
+
+    @Column(length = 20)
+    private String participantPhone;
+
+    @Column(length = 320)
+    private String participantEmail;
+
+    @Column(length = 280)
+    private String giftMessage;
+
+    private Integer quantity;
+
+    @Column(precision = 19, scale = 2)
+    private BigDecimal unitPrice;
+
+    @Column(precision = 19, scale = 2)
+    private BigDecimal totalAmount;
+
+    private String mpPreferenceId;
+
+    @Column(length = 2048)
+    private String mpCheckoutUrl;
+
+    private String mpCollectorId;
 
     @Column(insertable = false, updatable = false)
     private OffsetDateTime createdAt;
@@ -82,6 +109,46 @@ public class PurchaseIntent {
         return responsePayload;
     }
 
+    public String getParticipantName() {
+        return participantName;
+    }
+
+    public String getParticipantPhone() {
+        return participantPhone;
+    }
+
+    public String getParticipantEmail() {
+        return participantEmail;
+    }
+
+    public String getGiftMessage() {
+        return giftMessage;
+    }
+
+    public Integer getQuantity() {
+        return quantity;
+    }
+
+    public BigDecimal getUnitPrice() {
+        return unitPrice;
+    }
+
+    public BigDecimal getTotalAmount() {
+        return totalAmount;
+    }
+
+    public String getMpPreferenceId() {
+        return mpPreferenceId;
+    }
+
+    public String getMpCheckoutUrl() {
+        return mpCheckoutUrl;
+    }
+
+    public String getMpCollectorId() {
+        return mpCollectorId;
+    }
+
     public OffsetDateTime getCreatedAt() {
         return createdAt;
     }
@@ -96,5 +163,30 @@ public class PurchaseIntent {
         }
         this.responsePayload = responsePayload;
         status = PurchaseIntentStatus.COMPLETED;
+    }
+
+    public void captureOnlineRequest(
+            String participantName,
+            String participantPhone,
+            String participantEmail,
+            String giftMessage,
+            Integer quantity,
+            BigDecimal unitPrice,
+            BigDecimal totalAmount) {
+        this.participantName = participantName;
+        this.participantPhone = participantPhone;
+        this.participantEmail = participantEmail;
+        this.giftMessage = giftMessage;
+        this.quantity = quantity;
+        this.unitPrice = unitPrice;
+        this.totalAmount = totalAmount;
+    }
+
+    public void completeOnlineCheckout(
+            String mpPreferenceId, String mpCheckoutUrl, String mpCollectorId, String responsePayload) {
+        this.mpPreferenceId = mpPreferenceId;
+        this.mpCheckoutUrl = mpCheckoutUrl;
+        this.mpCollectorId = mpCollectorId;
+        complete(responsePayload);
     }
 }

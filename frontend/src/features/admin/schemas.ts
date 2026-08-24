@@ -15,6 +15,7 @@ export const cashPaymentSchema = z.object({
       const digits = value.replace(/\D/g, '');
       return digits.length === 10 || digits.length === 11;
     }, 'Informe um telefone com DDD.'),
+  giftMessage: z.string().trim().max(280, 'Informe no máximo 280 caracteres.').optional(),
   quantity: z.coerce.number().int().min(1, 'Informe ao menos 1 número.'),
 });
 

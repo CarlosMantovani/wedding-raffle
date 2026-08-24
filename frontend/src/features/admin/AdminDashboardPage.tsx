@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronDown, Download, Eye, EyeOff, Gift, LogOut, ReceiptText, Settings, Search, Trash2 } from 'lucide-react';
+import { ChevronDown, Download, Eye, EyeOff, Gift, LogOut, MessageSquareText, ReceiptText, Settings, Search, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 
 import { Button } from '../../components/ui/Button';
@@ -97,6 +97,13 @@ export function AdminDashboardPage() {
             >
               <Settings aria-hidden="true" className="h-4 w-4" />
               Configurações
+            </a>
+            <a
+              className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/15"
+              href="/admin/messages"
+            >
+              <MessageSquareText aria-hidden="true" className="h-4 w-4" />
+              Mensagens
             </a>
             <a
               className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-gold px-4 py-2 text-sm font-bold text-charcoal transition hover:bg-gold/90"

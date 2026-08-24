@@ -42,6 +42,7 @@ vi.mock('./services/adminTransactionService', () => ({
     getParticipantLuckyNumbersPdf: vi.fn(),
     getSummary: vi.fn(),
     list: vi.fn(),
+    listGiftMessages: vi.fn(),
     resolveCapacityReview: vi.fn(),
   },
 }));
@@ -145,6 +146,22 @@ describe('App', () => {
           quantity: 2,
           status: 'APROVADO',
           totalAmount: '20.00',
+        },
+      ],
+      first: true,
+      last: true,
+      number: 0,
+      size: 20,
+      totalElements: 1,
+      totalPages: 1,
+    });
+    mockedAdminTransactionService.listGiftMessages.mockResolvedValue({
+      content: [
+        {
+          createdAt: '2026-08-14T18:00:00-03:00',
+          externalReference: 'external-reference',
+          giftMessage: 'Felicidades ao casal!',
+          name: 'Guest User',
         },
       ],
       first: true,
@@ -425,6 +442,44 @@ describe('App', () => {
       expect.any(String),
     );
     expect(assign).toHaveBeenCalledWith('https://checkout.example.com');
+  });
+
+  it('sends optional gift message trimmed from the quantity step', async () => {
+    const user = userEvent.setup();
+    const assign = vi.fn();
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { ...window.location, pathname: '/buy', assign },
+    });
+    mockedTransactionService.create.mockResolvedValue({
+      checkoutUrl: 'https://checkout.example.com',
+      externalReference: 'external-reference',
+      preferenceId: 'preference-id',
+      recoveryCode: '4821',
+    });
+
+    renderApp('/buy');
+
+    await user.type(screen.getByLabelText('Nome'), 'Guest User');
+    await user.type(screen.getByLabelText('Telefone'), '(11) 99999-9999');
+    await user.click(screen.getByRole('button', { name: 'Continuar' }));
+    await screen.findAllByText('R$ 10,00');
+    expect(screen.getByText('0/280')).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText('Mensagem para o casal (opcional)'), '  Felicidades!  ');
+    expect(screen.getByText('16/280')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Pagar com Mercado Pago/i }));
+
+    await waitFor(() => expect(mockedTransactionService.create).toHaveBeenCalledTimes(1));
+    expect(mockedTransactionService.create).toHaveBeenCalledWith(
+      {
+        giftMessage: 'Felicidades!',
+        name: 'Guest User',
+        phone: '11999999999',
+        quantity: 1,
+      },
+      expect.any(String),
+    );
   });
 
   it('reuses the checkout idempotency key after a failed request', async () => {
@@ -953,6 +1008,23 @@ describe('App', () => {
       'href',
       'http://localhost:8080/transactions/cash-reference/lucky-numbers.pdf',
     );
+  });
+
+  it('lists gift messages for admin', async () => {
+    storeAdminSession(
+      createAdminSession({ accessToken: 'jwt-token', expiresIn: 3600, tokenType: 'Bearer' }),
+    );
+
+    renderApp('/admin/messages');
+
+    expect(await screen.findByText('Mensagens')).toBeInTheDocument();
+    expect(await screen.findByText('Guest User')).toBeInTheDocument();
+    expect(screen.getByText('Felicidades ao casal!')).toBeInTheDocument();
+    expect(mockedAdminTransactionService.listGiftMessages).toHaveBeenCalledWith({
+      page: 0,
+      size: 20,
+      sort: 'createdAt,desc',
+    });
   });
 
   it('updates raffle unit price from admin settings', async () => {

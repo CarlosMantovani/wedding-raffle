@@ -301,6 +301,23 @@ describe('PaymentReturnPage polling', () => {
     expect(mockedTransactionService.create).not.toHaveBeenCalled();
     expect(mockedTransactionService.getStatus).toHaveBeenLastCalledWith(
       externalReference,
+      '',
+      expect.any(AbortSignal),
+    );
+  });
+
+  it('sends the Mercado Pago payment id when it is present in the return URL', async () => {
+    window.history.pushState(
+      {},
+      '',
+      `/payment-return/pending?external_reference=${externalReference}&payment_id=123`,
+    );
+    render(<PaymentReturnPage />, { wrapper: TestQueryProvider });
+    await flushAsyncWork();
+
+    expect(mockedTransactionService.getStatus).toHaveBeenCalledWith(
+      externalReference,
+      '123',
       expect.any(AbortSignal),
     );
   });

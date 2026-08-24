@@ -40,6 +40,8 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
 
     Optional<Transaction> findByExternalReference(String externalReference);
 
+    Page<Transaction> findByGiftMessageIsNotNullAndGiftMessageNot(String giftMessage, Pageable pageable);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query(
             "select raffleTransaction from RaffleTransaction raffleTransaction where raffleTransaction.externalReference = :externalReference")

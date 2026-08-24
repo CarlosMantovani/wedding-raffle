@@ -12,7 +12,13 @@ public interface PurchaseIntentRepository extends JpaRepository<PurchaseIntent, 
 
     Optional<PurchaseIntent> findByIdempotencyKey(String idempotencyKey);
 
+    Optional<PurchaseIntent> findByExternalReference(String externalReference);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select intent from PurchaseIntent intent where intent.idempotencyKey = :idempotencyKey")
     Optional<PurchaseIntent> findLockedByIdempotencyKey(@Param("idempotencyKey") String idempotencyKey);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select intent from PurchaseIntent intent where intent.externalReference = :externalReference")
+    Optional<PurchaseIntent> findLockedByExternalReference(@Param("externalReference") String externalReference);
 }

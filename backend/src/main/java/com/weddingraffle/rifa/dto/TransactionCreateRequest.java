@@ -1,8 +1,19 @@
 package com.weddingraffle.rifa.dto;
 
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 public record TransactionCreateRequest(
-        @NotBlank String name, @NotBlank String phone, @NotNull @Min(value = 1) Integer quantity) {}
+        @NotBlank String name, @NotBlank String phone, String giftMessage, @NotNull @Min(value = 1) Integer quantity) {
+
+    public TransactionCreateRequest(String name, String phone, Integer quantity) {
+        this(name, phone, null, quantity);
+    }
+
+    @AssertTrue(message = "Gift message must not exceed 280 characters.")
+    public boolean isGiftMessageWithinLimit() {
+        return giftMessage == null || giftMessage.trim().length() <= 280;
+    }
+}

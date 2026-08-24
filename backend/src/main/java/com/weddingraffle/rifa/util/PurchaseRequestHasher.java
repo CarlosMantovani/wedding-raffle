@@ -25,14 +25,29 @@ public class PurchaseRequestHasher {
         return normalized;
     }
 
+    public String online(String name, String phone, String giftMessage, int quantity) {
+        return hash(
+                PurchaseIntentAction.MERCADO_PAGO_CHECKOUT,
+                List.of(name, phone, giftMessage == null ? "" : giftMessage, Integer.toString(quantity)));
+    }
+
     public String online(String name, String phone, int quantity) {
-        return hash(PurchaseIntentAction.MERCADO_PAGO_CHECKOUT, List.of(name, phone, Integer.toString(quantity)));
+        return online(name, phone, null, quantity);
+    }
+
+    public String cash(String name, String phone, String email, String giftMessage, int quantity) {
+        return hash(
+                PurchaseIntentAction.CASH_REGISTRATION,
+                List.of(
+                        name,
+                        phone,
+                        email == null ? "" : email,
+                        giftMessage == null ? "" : giftMessage,
+                        Integer.toString(quantity)));
     }
 
     public String cash(String name, String phone, String email, int quantity) {
-        return hash(
-                PurchaseIntentAction.CASH_REGISTRATION,
-                List.of(name, phone, email == null ? "" : email, Integer.toString(quantity)));
+        return cash(name, phone, email, null, quantity);
     }
 
     private static String hash(PurchaseIntentAction action, List<String> fields) {

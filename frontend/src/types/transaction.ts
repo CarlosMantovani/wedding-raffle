@@ -17,6 +17,7 @@ export interface TransactionQuoteResponse {
 export interface TransactionCreateRequest {
   name: string;
   phone: string;
+  giftMessage?: string;
   quantity: number;
 }
 
