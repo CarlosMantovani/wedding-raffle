@@ -90,7 +90,11 @@ class FlywayMigrationIntegrationTests {
                     .isTrue();
             assertThat(triggerExists(statement, "trg_transaction_lucky_number_batch_integrity"))
                     .isTrue();
-            assertThat(triggerExists(statement, "trg_lucky_number_batch_integrity"))
+            assertThat(triggerExists(statement, "trg_lucky_number_batch_integrity_insert"))
+                    .isTrue();
+            assertThat(triggerExists(statement, "trg_lucky_number_batch_integrity_update"))
+                    .isTrue();
+            assertThat(triggerExists(statement, "trg_lucky_number_batch_integrity_delete"))
                     .isTrue();
             assertThat(adminSeedExists(statement)).isTrue();
             assertThat(approvedFlagRankingQueryWorks(statement)).isTrue();

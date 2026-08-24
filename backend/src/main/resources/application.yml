@@ -26,6 +26,9 @@ server:
 
 app:
   frontend-origin: ${FRONTEND_ORIGIN}
+  lucky-number-allocation:
+    chunk-size: ${LUCKY_NUMBER_ALLOCATION_CHUNK_SIZE:1000}
+    max-conflict-retries: ${LUCKY_NUMBER_ALLOCATION_MAX_CONFLICT_RETRIES:8}
   jwt:
     secret: ${JWT_SECRET}
     expiration-seconds: ${JWT_EXPIRATION_SECONDS}

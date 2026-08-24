@@ -11,8 +11,6 @@ import org.springframework.data.repository.query.Param;
 
 public interface LuckyNumberRepository extends JpaRepository<LuckyNumber, Long> {
 
-    boolean existsByNumber(String number);
-
     boolean existsByTransaction(Transaction transaction);
 
     List<LuckyNumber> findByTransactionOrderByNumberAsc(Transaction transaction);
