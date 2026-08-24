@@ -32,3 +32,10 @@ ALTER TABLE transaction
         FOREIGN KEY (raffle_combo_id)
         REFERENCES raffle_combo (id)
         ON DELETE RESTRICT;
+
+ALTER TABLE purchase_intent
+    ADD COLUMN raffle_combo_id BIGINT,
+    ADD CONSTRAINT fk_purchase_intent_raffle_combo
+        FOREIGN KEY (raffle_combo_id)
+        REFERENCES raffle_combo (id)
+        ON DELETE RESTRICT;
