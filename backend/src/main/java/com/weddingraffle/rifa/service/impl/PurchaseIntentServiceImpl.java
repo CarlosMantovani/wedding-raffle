@@ -25,6 +25,7 @@ import com.weddingraffle.rifa.service.LuckyNumberService;
 import com.weddingraffle.rifa.service.OnlinePurchaseAttempt;
 import com.weddingraffle.rifa.service.ParticipantFlagService;
 import com.weddingraffle.rifa.service.PurchaseIntentService;
+import com.weddingraffle.rifa.service.PurchasePrice;
 import com.weddingraffle.rifa.service.RecoveryCodeService;
 import java.math.BigDecimal;
 import java.util.List;
@@ -79,8 +80,7 @@ public class PurchaseIntentServiceImpl implements PurchaseIntentService {
             String phone,
             String giftMessage,
             int quantity,
-            BigDecimal unitPrice,
-            BigDecimal totalAmount) {
+            PurchasePrice purchasePrice) {
         Optional<PurchaseIntent> existing = purchaseIntentRepository.findByIdempotencyKey(idempotencyKey);
         if (existing.isPresent()) {
             return toOnlineAttempt(validate(existing.get(), PurchaseIntentAction.MERCADO_PAGO_CHECKOUT, requestHash));
@@ -89,7 +89,15 @@ public class PurchaseIntentServiceImpl implements PurchaseIntentService {
         String externalReference = UUID.randomUUID().toString();
         PurchaseIntent intent = new PurchaseIntent(
                 idempotencyKey, PurchaseIntentAction.MERCADO_PAGO_CHECKOUT, requestHash, externalReference);
-        intent.captureOnlineRequest(name, phone, null, giftMessage, quantity, unitPrice, totalAmount);
+        intent.captureOnlineRequest(
+                name,
+                phone,
+                null,
+                giftMessage,
+                quantity,
+                purchasePrice.unitPrice(),
+                purchasePrice.totalAmount(),
+                purchasePrice.combo());
         purchaseIntentRepository.saveAndFlush(intent);
         return toOnlineAttempt(intent);
     }
@@ -147,6 +155,7 @@ public class PurchaseIntentServiceImpl implements PurchaseIntentService {
                 PaymentMethod.MERCADO_PAGO,
                 externalReference);
         transaction.assignPreference(intent.getMpPreferenceId(), intent.getMpCheckoutUrl(), intent.getMpCollectorId());
+        transaction.assignRaffleCombo(intent.getRaffleCombo());
         transaction.assignParticipantFlag(participantFlagService.resolveForPhone(intent.getParticipantPhone()));
         transaction.assignRecoveryCode(recoveryCodeService.resolveForPhone(intent.getParticipantPhone()));
         return transactionRepository.save(transaction);
@@ -244,6 +253,8 @@ public class PurchaseIntentServiceImpl implements PurchaseIntentService {
                 intent.getParticipantEmail(),
                 intent.getQuantity(),
                 intent.getUnitPrice(),
+                intent.getTotalAmount(),
+                intent.getRaffleCombo() != null,
                 intent.getExternalReference());
         return new OnlinePurchaseAttempt(preferenceRequest, completedResponse);
     }

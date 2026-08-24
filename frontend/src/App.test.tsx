@@ -58,6 +58,7 @@ vi.mock('./services/raffleService', () => ({
 vi.mock('./services/raffleConfigService', () => ({
   raffleConfigService: {
     getConfig: vi.fn(),
+    updateCombo: vi.fn(),
     updateScheduledDrawAt: vi.fn(),
     updateUnitPrice: vi.fn(),
   },
@@ -103,6 +104,8 @@ describe('App', () => {
       quantity: 1,
       unitPrice: '10.00',
       totalAmount: '10.00',
+      comboId: null,
+      availableCombos: [],
     });
     mockedTransactionService.getLuckyNumbersPdfUrl.mockReturnValue(
       'http://localhost:8080/transactions/external-reference/lucky-numbers.pdf',
@@ -183,6 +186,7 @@ describe('App', () => {
       scheduledDrawAt: null,
       unitPrice: '10.00',
       updatedAt: '2026-08-14T18:00:00-03:00',
+      combos: [],
     });
     mockedRaffleService.getEligibleNumbers.mockResolvedValue([
       {
@@ -198,26 +202,12 @@ describe('App', () => {
     ]);
   });
 
-  it('renders the public flag ranking on the purchase page', async () => {
+  it('does not render flag ranking on the purchase page', async () => {
     renderApp();
 
-    expect(await screen.findByText('Ranking de bandeiras')).toBeInTheDocument();
-    expect(screen.getByText('Uma bandeira exclusiva por telefone.')).toBeInTheDocument();
-    expect(screen.getByText('Novas compras somam pontos na mesma bandeira.')).toBeInTheDocument();
-    expect(
-      screen.getByText('Em empate, a compra mais recente fica na frente.'),
-    ).toBeInTheDocument();
-    expect(screen.getByText('A líder também ganhará um prêmio especial.')).toBeInTheDocument();
-    expect(await screen.findAllByText('Brasil')).toHaveLength(2);
-    expect(screen.getAllByRole('img', { name: '🇧🇷' })).toHaveLength(2);
-    expect(
-      screen.getAllByRole('progressbar', { name: 'Progresso relativo de Brasil' }),
-    ).toHaveLength(2);
-    expect(screen.queryByText('12')).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Ver top 30' })).toHaveAttribute(
-      'href',
-      '/flag-ranking',
-    );
+    expect(await screen.findByRole('button', { name: 'Continuar' })).toBeInTheDocument();
+    expect(screen.queryByText('Ranking de bandeiras')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Ver top 30' })).not.toBeInTheDocument();
   });
 
   it('renders the top thirty flag ranking page', async () => {
@@ -272,7 +262,7 @@ describe('App', () => {
     }
   });
 
-  it('renders the public countdown when scheduled draw date is configured', async () => {
+  it('keeps purchase open without rendering countdown before scheduled draw', async () => {
     mockedHomeService.getSummary.mockResolvedValue({
       scheduledDrawAt: '2026-09-06T02:00:00Z',
       raffleResult: null,
@@ -281,12 +271,8 @@ describe('App', () => {
 
     renderApp();
 
-    expect(await screen.findByText('Contagem para o sorteio')).toBeInTheDocument();
-    expect(screen.getByText('Tempo restante')).toBeInTheDocument();
-    expect(screen.getByText('Dias')).toBeInTheDocument();
-    expect(screen.getByText('Horas')).toBeInTheDocument();
-    expect(screen.getByText('Min.')).toBeInTheDocument();
-    expect(screen.getByText('Seg.')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Continuar' })).toBeInTheDocument();
+    expect(screen.queryByText('Contagem para o sorteio')).not.toBeInTheDocument();
   });
 
   it('shows the final urgency message when draw is less than five minutes away', () => {
@@ -312,7 +298,7 @@ describe('App', () => {
 
     renderApp('/buy');
 
-    expect(await screen.findAllByText('Sorteio encerrado')).toHaveLength(2);
+    expect(await screen.findAllByText('Sorteio encerrado')).toHaveLength(1);
     expect(
       screen.getByText('Sorteio encerrado. Não é mais possível comprar números.'),
     ).toBeInTheDocument();
@@ -357,7 +343,7 @@ describe('App', () => {
 
     renderApp();
 
-    expect(await screen.findByText('Contagem para o sorteio')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Continuar' })).toBeInTheDocument();
     expect(screen.queryByText('Número ganhador')).not.toBeInTheDocument();
     expect(screen.queryByText('00042')).not.toBeInTheDocument();
   });
@@ -388,6 +374,8 @@ describe('App', () => {
         quantity: 1,
         unitPrice: '10.00',
         totalAmount: '10.00',
+        comboId: null,
+        availableCombos: [],
       })
       .mockResolvedValueOnce({
         name: 'Guest User',
@@ -395,6 +383,8 @@ describe('App', () => {
         quantity: 2,
         unitPrice: '10.00',
         totalAmount: '20.00',
+        comboId: null,
+        availableCombos: [],
       });
 
     renderApp('/buy');
@@ -407,6 +397,105 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'Aumentar quantidade' }));
 
     expect(await screen.findByText('R$ 20,00')).toBeInTheDocument();
+  });
+
+  it('accepts a manually typed quantity and requests the regular backend quote', async () => {
+    const user = userEvent.setup();
+    mockedTransactionService.quote.mockImplementation(async (request) => ({
+      availableCombos: [],
+      comboId: null,
+      name: request.name,
+      phone: request.phone,
+      quantity: request.quantity,
+      totalAmount: (request.quantity * 50).toFixed(2),
+      unitPrice: '50.00',
+    }));
+
+    renderApp('/buy');
+    await user.type(screen.getByLabelText('Nome'), 'Guest User');
+    await user.type(screen.getByLabelText('Telefone'), '11999999999');
+    await user.click(screen.getByRole('button', { name: 'Continuar' }));
+    const quantityInput = await screen.findByLabelText('Quantidade de números');
+    await user.click(quantityInput);
+    await user.keyboard('17');
+
+    await waitFor(() =>
+      expect(mockedTransactionService.quote).toHaveBeenLastCalledWith({
+        name: 'Guest User',
+        phone: '11999999999',
+        quantity: 17,
+      }),
+    );
+    expect(quantityInput).toHaveValue(17);
+  });
+
+  it('selects backend-priced combo, shows correct savings, and clears it after manual change', async () => {
+    const user = userEvent.setup();
+    const combos = [
+      {
+        active: true,
+        averagePricePerNumber: '42.50',
+        discountPercent: '15.00',
+        displayOrder: 4,
+        highlightBestValue: true,
+        highlightMostChosen: false,
+        id: 4,
+        price: '1275.00',
+        quantity: 30,
+        regularPrice: '1500.00',
+        savingsAmount: '225.00',
+      },
+    ];
+    mockedTransactionService.quote.mockImplementation(async (request) => ({
+      availableCombos: combos,
+      comboId: request.comboId ?? null,
+      name: request.name,
+      phone: request.phone,
+      quantity: request.quantity,
+      totalAmount: request.comboId ? '1275.00' : (request.quantity * 50).toFixed(2),
+      unitPrice: '50.00',
+    }));
+    mockedTransactionService.create.mockReturnValue(new Promise(() => undefined));
+
+    renderApp('/buy');
+    await user.type(screen.getByLabelText('Nome'), 'Guest User');
+    await user.type(screen.getByLabelText('Telefone'), '11999999999');
+    await user.click(screen.getByRole('button', { name: 'Continuar' }));
+
+    const comboButton = await screen.findByRole('button', { name: /30 números/i });
+    expect(comboButton).toHaveTextContent('Melhor valor');
+    await user.click(comboButton);
+
+    await waitFor(() =>
+      expect(mockedTransactionService.quote).toHaveBeenLastCalledWith({
+        comboId: 4,
+        name: 'Guest User',
+        phone: '11999999999',
+        quantity: 30,
+      }),
+    );
+    expect(await screen.findAllByText('R$ 225,00')).not.toHaveLength(0);
+    expect(screen.queryByText('R$ 975,00')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /Pagar com Mercado Pago/i }));
+    expect(mockedTransactionService.create).toHaveBeenCalledWith(
+      {
+        comboId: 4,
+        name: 'Guest User',
+        phone: '11999999999',
+        quantity: 30,
+      },
+      expect.any(String),
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Aumentar quantidade' }));
+    await waitFor(() =>
+      expect(mockedTransactionService.quote).toHaveBeenLastCalledWith({
+        name: 'Guest User',
+        phone: '11999999999',
+        quantity: 31,
+      }),
+    );
   });
 
   it('creates transaction once and redirects to Mercado Pago checkout', async () => {
@@ -1036,6 +1125,7 @@ describe('App', () => {
       scheduledDrawAt: null,
       unitPrice: '15.00',
       updatedAt: '2026-08-14T18:05:00-03:00',
+      combos: [],
     });
 
     renderApp('/admin/settings');
@@ -1056,6 +1146,58 @@ describe('App', () => {
     expect(screen.getByText('R$ 15,00')).toBeInTheDocument();
   });
 
+  it('updates combo price, status, order, and configurable highlights without editing quantity', async () => {
+    const user = userEvent.setup();
+    storeAdminSession(
+      createAdminSession({ accessToken: 'jwt-token', expiresIn: 3600, tokenType: 'Bearer' }),
+    );
+    const combo = {
+      active: true,
+      averagePricePerNumber: '44.00',
+      discountPercent: '12.00',
+      displayOrder: 3,
+      highlightBestValue: false,
+      highlightMostChosen: false,
+      id: 3,
+      price: '880.00',
+      quantity: 20,
+      regularPrice: '1000.00',
+      savingsAmount: '120.00',
+    };
+    mockedRaffleConfigService.getConfig.mockResolvedValue({
+      combos: [combo],
+      scheduledDrawAt: null,
+      unitPrice: '50.00',
+      updatedAt: '2026-08-14T18:00:00-03:00',
+    });
+    mockedRaffleConfigService.updateCombo.mockResolvedValue({
+      combos: [{ ...combo, displayOrder: 7, highlightMostChosen: true, price: '870.00' }],
+      scheduledDrawAt: null,
+      unitPrice: '50.00',
+      updatedAt: '2026-08-14T18:05:00-03:00',
+    });
+
+    renderApp('/admin/settings');
+    expect(await screen.findByText('20 números')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Quantidade')).not.toBeInTheDocument();
+    await user.clear(screen.getByLabelText('Preço'));
+    await user.type(screen.getByLabelText('Preço'), '870');
+    await user.clear(screen.getByLabelText('Ordem'));
+    await user.type(screen.getByLabelText('Ordem'), '7');
+    await user.click(screen.getByLabelText('Mais escolhido'));
+    await user.click(screen.getByRole('button', { name: 'Salvar combo' }));
+
+    await waitFor(() =>
+      expect(mockedRaffleConfigService.updateCombo).toHaveBeenCalledWith(3, {
+        active: true,
+        displayOrder: 7,
+        highlightBestValue: false,
+        highlightMostChosen: true,
+        price: '870.00',
+      }),
+    );
+  });
+
   it('updates scheduled draw date from admin settings', async () => {
     const user = userEvent.setup();
     storeAdminSession(
@@ -1065,6 +1207,7 @@ describe('App', () => {
       scheduledDrawAt: '2026-09-05T23:00:00.000Z',
       unitPrice: '10.00',
       updatedAt: '2026-08-14T18:05:00-03:00',
+      combos: [],
     });
 
     renderApp('/admin/settings');

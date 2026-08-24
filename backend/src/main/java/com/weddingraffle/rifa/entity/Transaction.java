@@ -4,9 +4,12 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -43,6 +46,10 @@ public class Transaction {
 
     @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal unitPrice;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "raffle_combo_id")
+    private RaffleCombo raffleCombo;
 
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
@@ -209,6 +216,10 @@ public class Transaction {
         return unitPrice;
     }
 
+    public RaffleCombo getRaffleCombo() {
+        return raffleCombo;
+    }
+
     public PaymentStatus getStatus() {
         return status;
     }
@@ -310,6 +321,10 @@ public class Transaction {
         this.mpPreferenceId = mpPreferenceId;
         this.mpCheckoutUrl = mpCheckoutUrl;
         this.mpCollectorId = mpCollectorId;
+    }
+
+    public void assignRaffleCombo(RaffleCombo raffleCombo) {
+        this.raffleCombo = raffleCombo;
     }
 
     public boolean hasCompletedLuckyNumberBatch() {

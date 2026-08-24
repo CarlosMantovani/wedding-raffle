@@ -1,9 +1,25 @@
-export type PaymentStatus = 'PENDENTE' | 'APROVADO' | 'REJEITADO' | 'CANCELADO' | 'ESTORNADO' | 'CHARGEBACK' | 'EM_MEDIACAO';
+export type PaymentStatus =
+  'PENDENTE' | 'APROVADO' | 'REJEITADO' | 'CANCELADO' | 'ESTORNADO' | 'CHARGEBACK' | 'EM_MEDIACAO';
 
 export interface TransactionQuoteRequest {
   name: string;
   phone: string;
   quantity: number;
+  comboId?: number;
+}
+
+export interface RaffleComboResponse {
+  id: number;
+  quantity: number;
+  price: string;
+  active: boolean;
+  displayOrder: number;
+  highlightMostChosen: boolean;
+  highlightBestValue: boolean;
+  regularPrice: string;
+  savingsAmount: string;
+  discountPercent: string;
+  averagePricePerNumber: string;
 }
 
 export interface TransactionQuoteResponse {
@@ -12,6 +28,8 @@ export interface TransactionQuoteResponse {
   quantity: number;
   unitPrice: string;
   totalAmount: string;
+  comboId: number | null;
+  availableCombos: RaffleComboResponse[];
 }
 
 export interface TransactionCreateRequest {
@@ -19,6 +37,7 @@ export interface TransactionCreateRequest {
   phone: string;
   giftMessage?: string;
   quantity: number;
+  comboId?: number;
 }
 
 export interface TransactionCreateResponse {

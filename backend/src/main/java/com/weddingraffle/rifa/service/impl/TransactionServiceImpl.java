@@ -19,7 +19,9 @@ import com.weddingraffle.rifa.service.LuckyNumberService;
 import com.weddingraffle.rifa.service.OnlinePurchaseAttempt;
 import com.weddingraffle.rifa.service.PaymentReconciliationService;
 import com.weddingraffle.rifa.service.PurchaseIntentService;
+import com.weddingraffle.rifa.service.PurchasePrice;
 import com.weddingraffle.rifa.service.RaffleConfigService;
+import com.weddingraffle.rifa.service.RafflePricingService;
 import com.weddingraffle.rifa.service.TransactionService;
 import com.weddingraffle.rifa.util.ParticipantNormalizer;
 import com.weddingraffle.rifa.util.PurchaseRequestHasher;
@@ -44,6 +46,7 @@ public class TransactionServiceImpl implements TransactionService {
     private final PendingPaymentReconciliationCoordinator pendingPaymentReconciliationCoordinator;
     private final PurchaseIntentService purchaseIntentService;
     private final PurchaseRequestHasher purchaseRequestHasher;
+    private final RafflePricingService rafflePricingService;
 
     public TransactionServiceImpl(
             RaffleConfigService raffleConfigService,
@@ -53,7 +56,8 @@ public class TransactionServiceImpl implements TransactionService {
             PaymentReconciliationService paymentReconciliationService,
             PendingPaymentReconciliationCoordinator pendingPaymentReconciliationCoordinator,
             PurchaseIntentService purchaseIntentService,
-            PurchaseRequestHasher purchaseRequestHasher) {
+            PurchaseRequestHasher purchaseRequestHasher,
+            RafflePricingService rafflePricingService) {
         this.raffleConfigService = raffleConfigService;
         this.transactionRepository = transactionRepository;
         this.paymentProviderClient = paymentProviderClient;
@@ -62,6 +66,7 @@ public class TransactionServiceImpl implements TransactionService {
         this.pendingPaymentReconciliationCoordinator = pendingPaymentReconciliationCoordinator;
         this.purchaseIntentService = purchaseIntentService;
         this.purchaseRequestHasher = purchaseRequestHasher;
+        this.rafflePricingService = rafflePricingService;
     }
 
     @Override
@@ -69,9 +74,15 @@ public class TransactionServiceImpl implements TransactionService {
         ensureDrawIsOpen();
         String name = ParticipantNormalizer.normalizeName(request.name());
         String phone = ParticipantNormalizer.normalizePhone(request.phone());
-        BigDecimal unitPrice = raffleConfigService.getCurrentUnitPrice();
-        BigDecimal totalAmount = unitPrice.multiply(BigDecimal.valueOf(request.quantity()));
-        return new TransactionQuoteResponse(name, phone, request.quantity(), unitPrice, totalAmount);
+        PurchasePrice purchasePrice = rafflePricingService.calculate(request.quantity(), request.comboId());
+        return new TransactionQuoteResponse(
+                name,
+                phone,
+                request.quantity(),
+                purchasePrice.unitPrice(),
+                purchasePrice.totalAmount(),
+                purchasePrice.comboId(),
+                rafflePricingService.getActiveCombos());
     }
 
     @Override
@@ -80,12 +91,19 @@ public class TransactionServiceImpl implements TransactionService {
         String name = ParticipantNormalizer.normalizeName(request.name());
         String phone = ParticipantNormalizer.normalizePhone(request.phone());
         String giftMessage = ParticipantNormalizer.normalizeGiftMessage(request.giftMessage());
-        String requestHash = purchaseRequestHasher.online(name, phone, giftMessage, request.quantity());
+        String requestHash =
+                purchaseRequestHasher.online(name, phone, giftMessage, request.quantity(), request.comboId());
 
         OnlinePurchaseAttempt attempt = purchaseIntentService
                 .findOnline(normalizedIdempotencyKey, requestHash)
                 .orElseGet(() -> prepareOnlineAttempt(
-                        normalizedIdempotencyKey, requestHash, name, phone, giftMessage, request.quantity()));
+                        normalizedIdempotencyKey,
+                        requestHash,
+                        name,
+                        phone,
+                        giftMessage,
+                        request.quantity(),
+                        request.comboId()));
         if (attempt.isCompleted()) {
             return attempt.completedResponse();
         }
@@ -99,13 +117,18 @@ public class TransactionServiceImpl implements TransactionService {
     }
 
     private OnlinePurchaseAttempt prepareOnlineAttempt(
-            String idempotencyKey, String requestHash, String name, String phone, String giftMessage, int quantity) {
+            String idempotencyKey,
+            String requestHash,
+            String name,
+            String phone,
+            String giftMessage,
+            int quantity,
+            Long comboId) {
         ensureDrawIsOpen();
-        BigDecimal unitPrice = raffleConfigService.getCurrentUnitPrice();
-        BigDecimal totalAmount = unitPrice.multiply(BigDecimal.valueOf(quantity));
+        PurchasePrice purchasePrice = rafflePricingService.calculate(quantity, comboId);
         try {
             return purchaseIntentService.prepareOnline(
-                    idempotencyKey, requestHash, name, phone, giftMessage, quantity, unitPrice, totalAmount);
+                    idempotencyKey, requestHash, name, phone, giftMessage, quantity, purchasePrice);
         } catch (DataIntegrityViolationException exception) {
             return purchaseIntentService.findOnline(idempotencyKey, requestHash).orElseThrow(() -> exception);
         }

@@ -4,9 +4,12 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -57,6 +60,10 @@ public class PurchaseIntent {
 
     @Column(precision = 19, scale = 2)
     private BigDecimal totalAmount;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "raffle_combo_id")
+    private RaffleCombo raffleCombo;
 
     private String mpPreferenceId;
 
@@ -137,6 +144,10 @@ public class PurchaseIntent {
         return totalAmount;
     }
 
+    public RaffleCombo getRaffleCombo() {
+        return raffleCombo;
+    }
+
     public String getMpPreferenceId() {
         return mpPreferenceId;
     }
@@ -172,7 +183,8 @@ public class PurchaseIntent {
             String giftMessage,
             Integer quantity,
             BigDecimal unitPrice,
-            BigDecimal totalAmount) {
+            BigDecimal totalAmount,
+            RaffleCombo raffleCombo) {
         this.participantName = participantName;
         this.participantPhone = participantPhone;
         this.participantEmail = participantEmail;
@@ -180,6 +192,7 @@ public class PurchaseIntent {
         this.quantity = quantity;
         this.unitPrice = unitPrice;
         this.totalAmount = totalAmount;
+        this.raffleCombo = raffleCombo;
     }
 
     public void completeOnlineCheckout(

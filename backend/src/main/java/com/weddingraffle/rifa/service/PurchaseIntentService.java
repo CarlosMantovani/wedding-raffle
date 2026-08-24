@@ -18,8 +18,7 @@ public interface PurchaseIntentService {
             String phone,
             String giftMessage,
             int quantity,
-            BigDecimal unitPrice,
-            BigDecimal totalAmount);
+            PurchasePrice purchasePrice);
 
     TransactionCreateResponse completeOnline(
             String idempotencyKey, String requestHash, CheckoutPreferenceResponse preference);

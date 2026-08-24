@@ -12,6 +12,7 @@ import com.mercadopago.MercadoPagoConfig;
 import com.mercadopago.client.merchantorder.MerchantOrderClient;
 import com.mercadopago.client.payment.PaymentClient;
 import com.mercadopago.client.preference.PreferenceClient;
+import com.mercadopago.client.preference.PreferenceRequest;
 import com.mercadopago.core.MPRequestOptions;
 import com.mercadopago.resources.merchantorder.MerchantOrder;
 import com.mercadopago.resources.payment.Payment;
@@ -71,6 +72,36 @@ class MercadoPagoClientTests {
         assertThat(optionsCaptor.getValue().getSocketTimeout()).isEqualTo(5_000);
         assertThat(response)
                 .isEqualTo(new CheckoutPreferenceResponse("preference-123", "https://checkout.example.com", "456"));
+    }
+
+    @Test
+    void sendsComboAsOneItemWithOfficialTotalAndActualQuantityInDescription() throws Exception {
+        PreferenceClient preferenceClient = mock(PreferenceClient.class);
+        Preference preference = mock(Preference.class);
+        when(preference.getId()).thenReturn("preference-123");
+        when(preference.getInitPoint()).thenReturn("https://checkout.example.com");
+        when(preference.getCollectorId()).thenReturn(456L);
+        when(preferenceClient.create(any(), any(MPRequestOptions.class))).thenReturn(preference);
+        MercadoPagoClient client = new MercadoPagoClient(
+                appProperties(), mock(PaymentClient.class), preferenceClient, mock(MerchantOrderClient.class));
+
+        client.createPreference(
+                new CheckoutPreferenceRequest(
+                        "Guest User",
+                        null,
+                        20,
+                        new BigDecimal("50.00"),
+                        new BigDecimal("880.00"),
+                        true,
+                        "external-reference-123"),
+                "checkout-key-123");
+
+        ArgumentCaptor<PreferenceRequest> requestCaptor = ArgumentCaptor.forClass(PreferenceRequest.class);
+        verify(preferenceClient).create(requestCaptor.capture(), any(MPRequestOptions.class));
+        var item = requestCaptor.getValue().getItems().getFirst();
+        assertThat(item.getTitle()).isEqualTo("Combo 20 números da sorte");
+        assertThat(item.getQuantity()).isEqualTo(1);
+        assertThat(item.getUnitPrice()).isEqualByComparingTo("880.00");
     }
 
     @Test

@@ -35,6 +35,20 @@ public class PurchaseRequestHasher {
         return online(name, phone, null, quantity);
     }
 
+    public String online(String name, String phone, String giftMessage, int quantity, Long comboId) {
+        if (comboId == null) {
+            return online(name, phone, giftMessage, quantity);
+        }
+        return hash(
+                PurchaseIntentAction.MERCADO_PAGO_CHECKOUT,
+                List.of(
+                        name,
+                        phone,
+                        giftMessage == null ? "" : giftMessage,
+                        Integer.toString(quantity),
+                        "combo:" + comboId));
+    }
+
     public String cash(String name, String phone, String email, String giftMessage, int quantity) {
         return hash(
                 PurchaseIntentAction.CASH_REGISTRATION,
@@ -44,6 +58,10 @@ public class PurchaseRequestHasher {
                         email == null ? "" : email,
                         giftMessage == null ? "" : giftMessage,
                         Integer.toString(quantity)));
+    }
+
+    public String online(String name, String phone, int quantity, Long comboId) {
+        return online(name, phone, null, quantity, comboId);
     }
 
     public String cash(String name, String phone, String email, int quantity) {
