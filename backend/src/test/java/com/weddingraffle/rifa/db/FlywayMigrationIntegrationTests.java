@@ -57,6 +57,7 @@ class FlywayMigrationIntegrationTests {
             assertThat(tableExists(statement, "purchase_intent")).isTrue();
             assertThat(tableExists(statement, "provider_payment")).isTrue();
             assertThat(tableExists(statement, "payment_event")).isTrue();
+            assertThat(tableExists(statement, "raffle_combo")).isTrue();
             assertThat(indexExists(statement, "idx_transaction_email")).isTrue();
             assertThat(indexExists(statement, "idx_transaction_external_reference"))
                     .isTrue();
@@ -90,6 +91,8 @@ class FlywayMigrationIntegrationTests {
                     .isTrue();
             assertThat(columnExists(statement, "transaction", "payment_reconciliation_lease_token"))
                     .isTrue();
+            assertThat(columnExists(statement, "transaction", "raffle_combo_id"))
+                    .isTrue();
             assertThat(columnExists(statement, "lucky_number", "allocation_index"))
                     .isTrue();
             assertThat(constraintExists(statement, "uq_lucky_number_transaction_allocation_index"))
@@ -103,6 +106,11 @@ class FlywayMigrationIntegrationTests {
             assertThat(triggerExists(statement, "trg_lucky_number_batch_integrity_delete"))
                     .isTrue();
             assertThat(adminSeedExists(statement)).isTrue();
+            assertThat(
+                            singleString(
+                                    statement,
+                                    "select string_agg(quantity || ':' || price, ',' order by display_order) from raffle_combo"))
+                    .isEqualTo("5:240.00,10:460.00,20:880.00,30:1275.00");
             assertThat(approvedFlagRankingQueryWorks(statement)).isTrue();
             assertThat(adminTransactionSummaryQueryWorks(statement)).isTrue();
         }

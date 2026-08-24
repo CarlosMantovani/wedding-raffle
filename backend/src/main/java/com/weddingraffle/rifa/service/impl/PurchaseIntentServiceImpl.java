@@ -25,6 +25,7 @@ import com.weddingraffle.rifa.service.LuckyNumberService;
 import com.weddingraffle.rifa.service.OnlinePurchaseAttempt;
 import com.weddingraffle.rifa.service.ParticipantFlagService;
 import com.weddingraffle.rifa.service.PurchaseIntentService;
+import com.weddingraffle.rifa.service.PurchasePrice;
 import com.weddingraffle.rifa.service.RecoveryCodeService;
 import java.math.BigDecimal;
 import java.util.List;
@@ -78,8 +79,7 @@ public class PurchaseIntentServiceImpl implements PurchaseIntentService {
             String name,
             String phone,
             int quantity,
-            BigDecimal unitPrice,
-            BigDecimal totalAmount) {
+            PurchasePrice purchasePrice) {
         Optional<PurchaseIntent> existing = purchaseIntentRepository.findByIdempotencyKey(idempotencyKey);
         if (existing.isPresent()) {
             return toOnlineAttempt(validate(existing.get(), PurchaseIntentAction.MERCADO_PAGO_CHECKOUT, requestHash));
@@ -96,11 +96,12 @@ public class PurchaseIntentServiceImpl implements PurchaseIntentService {
                 phone,
                 null,
                 quantity,
-                unitPrice,
-                totalAmount,
+                purchasePrice.unitPrice(),
+                purchasePrice.totalAmount(),
                 PaymentStatus.PENDING,
                 PaymentMethod.MERCADO_PAGO,
                 externalReference);
+        transaction.assignRaffleCombo(purchasePrice.combo());
         transaction.assignParticipantFlag(participantFlagService.resolveForPhone(phone));
         transaction.assignRecoveryCode(recoveryCodeService.resolveForPhone(phone));
         transactionRepository.save(transaction);
@@ -225,6 +226,8 @@ public class PurchaseIntentServiceImpl implements PurchaseIntentService {
                 transaction.getEmail(),
                 transaction.getQuantity(),
                 transaction.getUnitPrice(),
+                transaction.getTotalAmount(),
+                transaction.getRaffleCombo() != null,
                 transaction.getExternalReference());
         return new OnlinePurchaseAttempt(preferenceRequest, completedResponse);
     }

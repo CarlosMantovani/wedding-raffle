@@ -1,5 +1,10 @@
 import { apiClient } from '../config/apiClient';
-import type { RaffleConfigResponse, ScheduledDrawAtUpdateRequest, UnitPriceUpdateRequest } from '../types/admin';
+import type {
+  RaffleComboUpdateRequest,
+  RaffleConfigResponse,
+  ScheduledDrawAtUpdateRequest,
+  UnitPriceUpdateRequest,
+} from '../types/admin';
 
 export const raffleConfigService = {
   async getConfig(): Promise<RaffleConfigResponse> {
@@ -8,12 +13,31 @@ export const raffleConfigService = {
   },
 
   async updateUnitPrice(request: UnitPriceUpdateRequest): Promise<RaffleConfigResponse> {
-    const response = await apiClient.put<RaffleConfigResponse>('/admin/raffle-config/unit-price', request);
+    const response = await apiClient.put<RaffleConfigResponse>(
+      '/admin/raffle-config/unit-price',
+      request,
+    );
     return response.data;
   },
 
-  async updateScheduledDrawAt(request: ScheduledDrawAtUpdateRequest): Promise<RaffleConfigResponse> {
-    const response = await apiClient.put<RaffleConfigResponse>('/admin/raffle-config/scheduled-at', request);
+  async updateScheduledDrawAt(
+    request: ScheduledDrawAtUpdateRequest,
+  ): Promise<RaffleConfigResponse> {
+    const response = await apiClient.put<RaffleConfigResponse>(
+      '/admin/raffle-config/scheduled-at',
+      request,
+    );
+    return response.data;
+  },
+
+  async updateCombo(
+    comboId: number,
+    request: RaffleComboUpdateRequest,
+  ): Promise<RaffleConfigResponse> {
+    const response = await apiClient.put<RaffleConfigResponse>(
+      `/admin/raffle-config/combos/${comboId}`,
+      request,
+    );
     return response.data;
   },
 };

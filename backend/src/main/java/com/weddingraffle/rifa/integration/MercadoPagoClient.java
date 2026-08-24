@@ -16,6 +16,7 @@ import com.mercadopago.resources.payment.Payment;
 import com.mercadopago.resources.preference.Preference;
 import com.weddingraffle.rifa.config.AppProperties;
 import com.weddingraffle.rifa.exception.ExternalPaymentException;
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +33,7 @@ public class MercadoPagoClient implements PaymentProviderClient {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(MercadoPagoClient.class);
 
+    private static final String COMBO_ITEM_TITLE = "Combo %d números da sorte";
     private static final String ITEM_TITLE = "Número(s) da sorte";
 
     private final AppProperties appProperties;
@@ -182,10 +184,13 @@ public class MercadoPagoClient implements PaymentProviderClient {
     }
 
     private PreferenceRequest toPreferenceRequest(CheckoutPreferenceRequest request) {
+        String itemTitle = request.promotionalCombo() ? COMBO_ITEM_TITLE.formatted(request.quantity()) : ITEM_TITLE;
+        int itemQuantity = request.promotionalCombo() ? 1 : request.quantity();
+        BigDecimal itemUnitPrice = request.promotionalCombo() ? request.totalAmount() : request.unitPrice();
         PreferenceItemRequest item = PreferenceItemRequest.builder()
-                .title(ITEM_TITLE)
-                .quantity(request.quantity())
-                .unitPrice(request.unitPrice())
+                .title(itemTitle)
+                .quantity(itemQuantity)
+                .unitPrice(itemUnitPrice)
                 .build();
 
         PreferenceBackUrlsRequest backUrls = PreferenceBackUrlsRequest.builder()
