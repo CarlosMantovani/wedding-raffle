@@ -84,6 +84,12 @@ class FlywayMigrationIntegrationTests {
                     .isTrue();
             assertThat(columnExists(statement, "transaction", "lucky_numbers_generated_at"))
                     .isTrue();
+            assertThat(columnExists(statement, "transaction", "payment_reconciliation_attempted_at"))
+                    .isTrue();
+            assertThat(columnExists(statement, "transaction", "payment_reconciliation_lease_until"))
+                    .isTrue();
+            assertThat(columnExists(statement, "transaction", "payment_reconciliation_lease_token"))
+                    .isTrue();
             assertThat(columnExists(statement, "lucky_number", "allocation_index"))
                     .isTrue();
             assertThat(constraintExists(statement, "uq_lucky_number_transaction_allocation_index"))

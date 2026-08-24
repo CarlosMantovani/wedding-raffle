@@ -5,9 +5,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.weddingraffle.rifa.dto.TransactionCreateRequest;
@@ -182,17 +185,52 @@ class PaymentApprovalAtomicityIntegrationTests {
         assertThat(generatedCandidateCalls).hasValue(QUANTITY);
     }
 
-    @Test
-    void twoPollsThatReadPendingStateBeforeTheLockApplyTheApprovalOnce() throws Exception {
+    @ParameterizedTest(name = "{0} concurrent polls apply the approval through one external reconciliation")
+    @ValueSource(ints = {2, 10, 50})
+    void concurrentPollsApplyTheApprovalThroughOneExternalReconciliation(int workers) throws Exception {
         TransactionCreateResponse created = createTransactionWithPendingPayment();
         PaymentProviderPayment approved = payment(created, "approved", T2);
-        makeAllProviderCallsReadBeforeTheCriticalSection(2, approved);
+        clearInvocations(paymentProviderClient);
+        when(paymentProviderClient.getPayment(PAYMENT_ID)).thenReturn(approved);
 
-        runConcurrently(
-                () -> transactionService.getStatus(created.externalReference()),
-                () -> transactionService.getStatus(created.externalReference()));
+        runConcurrently(workers, () -> transactionService.getStatus(created.externalReference()));
 
-        assertSingleCompletedBatch(created, 2);
+        verify(paymentProviderClient, times(1)).getPayment(PAYMENT_ID);
+        assertSingleCompletedBatch(created, 1);
+        assertThat(generatedCandidateCalls).hasValue(QUANTITY);
+    }
+
+    @Test
+    void webhookApprovalPrevailsOverAnOlderPendingPollingResponse() throws Exception {
+        TransactionCreateResponse created = createTransactionWithPendingPayment();
+        PaymentProviderPayment oldPending = payment(created, "pending", T1);
+        PaymentProviderPayment approved = payment(created, "approved", T2);
+        CountDownLatch pollingFetchStarted = new CountDownLatch(1);
+        CountDownLatch releasePollingFetch = new CountDownLatch(1);
+        AtomicInteger calls = new AtomicInteger();
+        clearInvocations(paymentProviderClient);
+        when(paymentProviderClient.getPayment(PAYMENT_ID)).thenAnswer(invocation -> {
+            if (calls.incrementAndGet() == 1) {
+                pollingFetchStarted.countDown();
+                assertThat(releasePollingFetch.await(10, TimeUnit.SECONDS)).isTrue();
+                return oldPending;
+            }
+            return approved;
+        });
+
+        var executor = Executors.newSingleThreadExecutor();
+        try {
+            Future<?> delayedPolling = executor.submit(() -> transactionService.getStatus(created.externalReference()));
+            assertThat(pollingFetchStarted.await(10, TimeUnit.SECONDS)).isTrue();
+            transactionService.processPaymentNotification(PAYMENT_ID);
+            releasePollingFetch.countDown();
+            delayedPolling.get(10, TimeUnit.SECONDS);
+        } finally {
+            executor.shutdownNow();
+        }
+
+        verify(paymentProviderClient, times(2)).getPayment(PAYMENT_ID);
+        assertSingleCompletedBatch(created, 1);
         assertThat(generatedCandidateCalls).hasValue(QUANTITY);
     }
 

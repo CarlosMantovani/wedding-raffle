@@ -2,12 +2,15 @@ package com.weddingraffle.rifa.repository;
 
 import com.weddingraffle.rifa.entity.Transaction;
 import jakarta.persistence.LockModeType;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -41,6 +44,47 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     @Query(
             "select raffleTransaction from RaffleTransaction raffleTransaction where raffleTransaction.externalReference = :externalReference")
     Optional<Transaction> findLockedByExternalReference(@Param("externalReference") String externalReference);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(
+            value =
+                    """
+                    update transaction
+                    set payment_reconciliation_attempted_at = :attemptedAt,
+                        payment_reconciliation_lease_until = :leaseUntil,
+                        payment_reconciliation_lease_token = :leaseToken
+                    where id = :transactionId
+                      and status = 'PENDING'
+                      and mp_payment_id is not null
+                      and (
+                          payment_reconciliation_attempted_at is null
+                          or payment_reconciliation_attempted_at <= :earliestAllowedAttempt
+                      )
+                      and (
+                          payment_reconciliation_lease_until is null
+                          or payment_reconciliation_lease_until <= :attemptedAt
+                      )
+                    """,
+            nativeQuery = true)
+    int tryAcquirePaymentReconciliation(
+            @Param("transactionId") Long transactionId,
+            @Param("leaseToken") UUID leaseToken,
+            @Param("attemptedAt") OffsetDateTime attemptedAt,
+            @Param("earliestAllowedAttempt") OffsetDateTime earliestAllowedAttempt,
+            @Param("leaseUntil") OffsetDateTime leaseUntil);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(
+            value =
+                    """
+                    update transaction
+                    set payment_reconciliation_lease_until = null,
+                        payment_reconciliation_lease_token = null
+                    where id = :transactionId
+                      and payment_reconciliation_lease_token = :leaseToken
+                    """,
+            nativeQuery = true)
+    int releasePaymentReconciliation(@Param("transactionId") Long transactionId, @Param("leaseToken") UUID leaseToken);
 
     List<Transaction> findByPhoneAndRecoveryCodeOrderByCreatedAtDesc(String phone, String recoveryCode);
 

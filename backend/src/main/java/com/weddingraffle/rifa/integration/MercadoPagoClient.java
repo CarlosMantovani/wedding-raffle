@@ -107,10 +107,10 @@ public class MercadoPagoClient implements PaymentProviderClient {
 
     @Override
     public PaymentProviderPayment getPayment(String paymentId) {
-        LOGGER.info("Mercado Pago payment status request paymentId={}", paymentId);
+        LOGGER.debug("Mercado Pago payment status request paymentId={}", paymentId);
         PaymentProviderPayment result =
                 resilienceExecutor.execute(MercadoPagoOperation.GET_PAYMENT, () -> getPaymentOnce(paymentId));
-        LOGGER.info(
+        LOGGER.debug(
                 "Mercado Pago payment status response paymentId={} externalReference={} status={}",
                 result.paymentId(),
                 result.externalReference(),
