@@ -16,13 +16,14 @@ import com.mercadopago.resources.payment.Payment;
 import com.mercadopago.resources.preference.Preference;
 import com.weddingraffle.rifa.config.AppProperties;
 import com.weddingraffle.rifa.exception.ExternalPaymentException;
+import java.time.Clock;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executors;
+import org.apache.http.impl.client.DefaultHttpRequestRetryHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.retry.annotation.Backoff;
-import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -37,10 +38,21 @@ public class MercadoPagoClient implements PaymentProviderClient {
     private final PaymentClient paymentClient;
     private final MerchantOrderClient merchantOrderClient;
     private final PreferenceClient preferenceClient;
+    private final MercadoPagoResilienceExecutor resilienceExecutor;
+    private final MercadoPagoFailureClassifier failureClassifier;
 
     @Autowired
-    public MercadoPagoClient(AppProperties appProperties) {
-        this(appProperties, new PaymentClient(), new PreferenceClient(), new MerchantOrderClient());
+    public MercadoPagoClient(
+            AppProperties appProperties,
+            MercadoPagoResilienceExecutor resilienceExecutor,
+            MercadoPagoFailureClassifier failureClassifier) {
+        this.appProperties = appProperties;
+        configureSdk(appProperties.mercadoPago());
+        this.paymentClient = new PaymentClient();
+        this.preferenceClient = new PreferenceClient();
+        this.merchantOrderClient = new MerchantOrderClient();
+        this.resilienceExecutor = resilienceExecutor;
+        this.failureClassifier = failureClassifier;
     }
 
     MercadoPagoClient(
@@ -48,52 +60,69 @@ public class MercadoPagoClient implements PaymentProviderClient {
             PaymentClient paymentClient,
             PreferenceClient preferenceClient,
             MerchantOrderClient merchantOrderClient) {
+        this(
+                appProperties,
+                paymentClient,
+                preferenceClient,
+                merchantOrderClient,
+                testResilienceExecutor(appProperties),
+                new MercadoPagoFailureClassifier(Clock.systemUTC()));
+    }
+
+    MercadoPagoClient(
+            AppProperties appProperties,
+            PaymentClient paymentClient,
+            PreferenceClient preferenceClient,
+            MerchantOrderClient merchantOrderClient,
+            MercadoPagoResilienceExecutor resilienceExecutor,
+            MercadoPagoFailureClassifier failureClassifier) {
         this.appProperties = appProperties;
-        MercadoPagoConfig.setAccessToken(appProperties.mercadoPago().accessToken());
         this.paymentClient = paymentClient;
         this.preferenceClient = preferenceClient;
         this.merchantOrderClient = merchantOrderClient;
+        this.resilienceExecutor = resilienceExecutor;
+        this.failureClassifier = failureClassifier;
     }
 
     @Override
-    @Retryable(
-            retryFor = ExternalPaymentException.class,
-            maxAttemptsExpression = "${app.mercado-pago.retry.max-attempts}",
-            backoff =
-                    @Backoff(
-                            delayExpression = "${app.mercado-pago.retry.delay-millis}",
-                            multiplierExpression = "${app.mercado-pago.retry.multiplier}"))
     public CheckoutPreferenceResponse createPreference(CheckoutPreferenceRequest request, String idempotencyKey) {
+        if (!StringUtils.hasText(idempotencyKey)) {
+            throw new ExternalPaymentException("Mercado Pago preference creation requires an idempotency key.", null);
+        }
+        return resilienceExecutor.execute(
+                MercadoPagoOperation.CREATE_PREFERENCE, () -> createPreferenceOnce(request, idempotencyKey));
+    }
+
+    private CheckoutPreferenceResponse createPreferenceOnce(CheckoutPreferenceRequest request, String idempotencyKey) {
         try {
-            MPRequestOptions requestOptions = MPRequestOptions.builder()
-                    .customHeaders(Map.of("X-Idempotency-Key", idempotencyKey))
-                    .build();
+            MPRequestOptions requestOptions = requestOptions(Map.of("X-Idempotency-Key", idempotencyKey));
             Preference preference = preferenceClient.create(toPreferenceRequest(request), requestOptions);
             return new CheckoutPreferenceResponse(
                     preference.getId(), preference.getInitPoint(), asString(preference.getCollectorId()));
         } catch (MPApiException | MPException exception) {
-            throw new ExternalPaymentException("Unable to create Mercado Pago preference.", exception);
+            throw failureClassifier.classify(
+                    MercadoPagoOperation.CREATE_PREFERENCE, exception, "Unable to create Mercado Pago preference");
         }
     }
 
     @Override
-    @Retryable(
-            retryFor = ExternalPaymentException.class,
-            maxAttemptsExpression = "${app.mercado-pago.retry.max-attempts}",
-            backoff =
-                    @Backoff(
-                            delayExpression = "${app.mercado-pago.retry.delay-millis}",
-                            multiplierExpression = "${app.mercado-pago.retry.multiplier}"))
     public PaymentProviderPayment getPayment(String paymentId) {
         LOGGER.info("Mercado Pago payment status request paymentId={}", paymentId);
+        PaymentProviderPayment result =
+                resilienceExecutor.execute(MercadoPagoOperation.GET_PAYMENT, () -> getPaymentOnce(paymentId));
+        LOGGER.info(
+                "Mercado Pago payment status response paymentId={} externalReference={} status={}",
+                result.paymentId(),
+                result.externalReference(),
+                result.status());
+        return result;
+    }
+
+    private PaymentProviderPayment getPaymentOnce(String paymentId) {
         try {
-            Payment payment = paymentClient.get(Long.valueOf(paymentId));
-            MerchantOrder merchantOrder = getMerchantOrder(payment);
-            LOGGER.info(
-                    "Mercado Pago payment status response paymentId={} externalReference={} status={}",
-                    payment.getId(),
-                    payment.getExternalReference(),
-                    payment.getStatus());
+            MPRequestOptions requestOptions = requestOptions(Map.of());
+            Payment payment = paymentClient.get(Long.valueOf(paymentId), requestOptions);
+            MerchantOrder merchantOrder = getMerchantOrder(payment, requestOptions);
             return new PaymentProviderPayment(
                     asString(payment.getId()),
                     payment.getExternalReference(),
@@ -107,16 +136,45 @@ public class MercadoPagoClient implements PaymentProviderClient {
                     payment.getDateCreated(),
                     payment.getDateLastUpdated());
         } catch (MPApiException | MPException | NumberFormatException exception) {
-            LOGGER.warn("Mercado Pago payment status request failed paymentId={}", paymentId, exception);
-            throw new ExternalPaymentException("Unable to get Mercado Pago payment.", exception);
+            throw failureClassifier.classify(
+                    MercadoPagoOperation.GET_PAYMENT, exception, "Unable to get Mercado Pago payment");
         }
     }
 
-    private MerchantOrder getMerchantOrder(Payment payment) throws MPException, MPApiException {
+    private MerchantOrder getMerchantOrder(Payment payment, MPRequestOptions requestOptions)
+            throws MPException, MPApiException {
         if (payment.getOrder() == null || payment.getOrder().getId() == null) {
             return null;
         }
-        return merchantOrderClient.get(payment.getOrder().getId());
+        return merchantOrderClient.get(payment.getOrder().getId(), requestOptions);
+    }
+
+    private MPRequestOptions requestOptions(Map<String, String> customHeaders) {
+        AppProperties.Http http = appProperties.mercadoPago().http();
+        return MPRequestOptions.builder()
+                .connectionTimeout(http.connectTimeoutMillis())
+                .connectionRequestTimeout(http.connectionRequestTimeoutMillis())
+                .socketTimeout(http.readTimeoutMillis())
+                .customHeaders(customHeaders)
+                .build();
+    }
+
+    private static void configureSdk(AppProperties.MercadoPago properties) {
+        MercadoPagoConfig.setAccessToken(properties.accessToken());
+        MercadoPagoConfig.setConnectionTimeout(properties.http().connectTimeoutMillis());
+        MercadoPagoConfig.setConnectionRequestTimeout(properties.http().connectionRequestTimeoutMillis());
+        MercadoPagoConfig.setSocketTimeout(properties.http().readTimeoutMillis());
+        MercadoPagoConfig.setMaxConnections(properties.http().maxConnections());
+        MercadoPagoConfig.setRetryHandler(new DefaultHttpRequestRetryHandler(0, false));
+    }
+
+    private static MercadoPagoResilienceExecutor testResilienceExecutor(AppProperties appProperties) {
+        return new MercadoPagoResilienceExecutor(
+                appProperties.mercadoPago(),
+                Clock.systemUTC(),
+                Executors.newThreadPerTaskExecutor(Thread.ofVirtual().factory()),
+                Thread::sleep,
+                () -> 0.5);
     }
 
     private static String asString(Long value) {

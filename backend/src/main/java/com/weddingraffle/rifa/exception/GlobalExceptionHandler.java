@@ -53,10 +53,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiErrorResponse> handleExternalPayment(
             ExternalPaymentException exception, HttpServletRequest request) {
         LOGGER.error(
-                "Payment provider error while processing {} {}",
+                "Payment provider error while processing {} {} status={} failureType={} reason={}",
                 request.getMethod(),
                 request.getRequestURI(),
-                exception);
+                exception.getHttpStatus(),
+                exception.getFailureType(),
+                exception.getMessage());
 
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
                 .body(ApiErrorResponse.withoutFieldErrors(
