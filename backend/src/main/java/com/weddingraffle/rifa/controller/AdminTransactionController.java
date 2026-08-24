@@ -1,5 +1,6 @@
 package com.weddingraffle.rifa.controller;
 
+import com.weddingraffle.rifa.dto.AdminGiftMessageResponse;
 import com.weddingraffle.rifa.dto.AdminTransactionResponse;
 import com.weddingraffle.rifa.dto.AdminTransactionSummaryResponse;
 import com.weddingraffle.rifa.dto.CapacityReviewDecisionRequest;
@@ -42,6 +43,13 @@ public class AdminTransactionController {
             AdminTransactionService adminTransactionService, LuckyNumberPdfService luckyNumberPdfService) {
         this.adminTransactionService = adminTransactionService;
         this.luckyNumberPdfService = luckyNumberPdfService;
+    }
+
+    @Operation(summary = "List gift messages for admin")
+    @GetMapping("/messages")
+    public ResponseEntity<Page<AdminGiftMessageResponse>> listGiftMessages(
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return ResponseEntity.ok(adminTransactionService.listGiftMessages(pageable));
     }
 
     @Operation(summary = "Get transaction summary for admin")

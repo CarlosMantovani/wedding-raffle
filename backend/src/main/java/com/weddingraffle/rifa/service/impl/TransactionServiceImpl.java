@@ -31,6 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 @Service
 public class TransactionServiceImpl implements TransactionService {
@@ -89,12 +90,20 @@ public class TransactionServiceImpl implements TransactionService {
         String normalizedIdempotencyKey = purchaseRequestHasher.normalizeIdempotencyKey(idempotencyKey);
         String name = ParticipantNormalizer.normalizeName(request.name());
         String phone = ParticipantNormalizer.normalizePhone(request.phone());
-        String requestHash = purchaseRequestHasher.online(name, phone, request.quantity(), request.comboId());
+        String giftMessage = ParticipantNormalizer.normalizeGiftMessage(request.giftMessage());
+        String requestHash =
+                purchaseRequestHasher.online(name, phone, giftMessage, request.quantity(), request.comboId());
 
         OnlinePurchaseAttempt attempt = purchaseIntentService
                 .findOnline(normalizedIdempotencyKey, requestHash)
                 .orElseGet(() -> prepareOnlineAttempt(
-                        normalizedIdempotencyKey, requestHash, name, phone, request.quantity(), request.comboId()));
+                        normalizedIdempotencyKey,
+                        requestHash,
+                        name,
+                        phone,
+                        giftMessage,
+                        request.quantity(),
+                        request.comboId()));
         if (attempt.isCompleted()) {
             return attempt.completedResponse();
         }
@@ -108,12 +117,18 @@ public class TransactionServiceImpl implements TransactionService {
     }
 
     private OnlinePurchaseAttempt prepareOnlineAttempt(
-            String idempotencyKey, String requestHash, String name, String phone, int quantity, Long comboId) {
+            String idempotencyKey,
+            String requestHash,
+            String name,
+            String phone,
+            String giftMessage,
+            int quantity,
+            Long comboId) {
         ensureDrawIsOpen();
         PurchasePrice purchasePrice = rafflePricingService.calculate(quantity, comboId);
         try {
             return purchaseIntentService.prepareOnline(
-                    idempotencyKey, requestHash, name, phone, quantity, purchasePrice);
+                    idempotencyKey, requestHash, name, phone, giftMessage, quantity, purchasePrice);
         } catch (DataIntegrityViolationException exception) {
             return purchaseIntentService.findOnline(idempotencyKey, requestHash).orElseThrow(() -> exception);
         }
@@ -126,10 +141,19 @@ public class TransactionServiceImpl implements TransactionService {
     }
 
     @Override
-    public TransactionStatusResponse getStatus(String externalReference) {
+    public TransactionStatusResponse getStatus(String externalReference, String paymentId) {
+        String normalizedPaymentId = normalizePaymentId(paymentId);
         Transaction transaction = transactionRepository
                 .findByExternalReference(externalReference)
-                .orElseThrow(() -> new ResourceNotFoundException("Transaction not found."));
+                .orElseGet(() -> purchaseIntentService.materializeOnlineTransaction(externalReference));
+
+        if (normalizedPaymentId != null) {
+            PaymentProviderPayment payment = paymentProviderClient.getPayment(normalizedPaymentId);
+            paymentReconciliationService.reconcile(normalizedPaymentId, externalReference, payment);
+            transaction = transactionRepository
+                    .findByExternalReference(externalReference)
+                    .orElseThrow(() -> new ResourceNotFoundException("Transaction not found."));
+        }
 
         if (transaction.getStatus() == PaymentStatus.PENDING && transaction.getMpPaymentId() != null) {
             refreshPendingTransaction(transaction);
@@ -173,6 +197,13 @@ public class TransactionServiceImpl implements TransactionService {
 
     private void refreshPendingTransaction(Transaction transaction) {
         pendingPaymentReconciliationCoordinator.reconcileIfDue(transaction);
+    }
+
+    private static String normalizePaymentId(String paymentId) {
+        if (!StringUtils.hasText(paymentId)) {
+            return null;
+        }
+        return paymentId.trim();
     }
 
     private TransactionStatusResponse toStatusResponse(Transaction transaction) {

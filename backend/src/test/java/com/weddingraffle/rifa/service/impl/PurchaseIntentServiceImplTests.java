@@ -2,12 +2,13 @@ package com.weddingraffle.rifa.service.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.weddingraffle.rifa.entity.ParticipantFlag;
+import com.weddingraffle.rifa.entity.PurchaseIntent;
 import com.weddingraffle.rifa.entity.RaffleCombo;
-import com.weddingraffle.rifa.entity.Transaction;
 import com.weddingraffle.rifa.repository.PurchaseIntentRepository;
 import com.weddingraffle.rifa.repository.TransactionRepository;
 import com.weddingraffle.rifa.service.CapacityReservationService;
@@ -45,13 +46,9 @@ class PurchaseIntentServiceImplTests {
     private RecoveryCodeService recoveryCodeService;
 
     @Test
-    void preservesOfficialComboPriceNormalUnitPriceAndHistoricalQuantity() {
+    void preservesOfficialComboPriceNormalUnitPriceAndHistoricalQuantityInPurchaseIntent() {
         RaffleCombo combo = new RaffleCombo(20, new BigDecimal("880.00"), true, 3);
         when(purchaseIntentRepository.findByIdempotencyKey("combo-key")).thenReturn(Optional.empty());
-        when(transactionRepository.save(any(Transaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(participantFlagService.resolveForPhone("11999999999"))
-                .thenReturn(new ParticipantFlag("BRAZIL", "Brasil", "BR"));
-        when(recoveryCodeService.resolveForPhone("11999999999")).thenReturn("4821");
 
         service()
                 .prepareOnline(
@@ -59,20 +56,22 @@ class PurchaseIntentServiceImplTests {
                         "request-hash",
                         "Guest User",
                         "11999999999",
+                        null,
                         20,
                         new PurchasePrice(new BigDecimal("50.00"), new BigDecimal("880.00"), combo));
 
-        ArgumentCaptor<Transaction> captor = ArgumentCaptor.forClass(Transaction.class);
-        org.mockito.Mockito.verify(transactionRepository).save(captor.capture());
-        Transaction transaction = captor.getValue();
-        assertThat(transaction.getQuantity()).isEqualTo(20);
-        assertThat(transaction.getUnitPrice()).isEqualByComparingTo("50.00");
-        assertThat(transaction.getTotalAmount()).isEqualByComparingTo("880.00");
-        assertThat(transaction.getRaffleCombo()).isSameAs(combo);
+        ArgumentCaptor<PurchaseIntent> captor = ArgumentCaptor.forClass(PurchaseIntent.class);
+        verify(purchaseIntentRepository).saveAndFlush(captor.capture());
+        PurchaseIntent intent = captor.getValue();
+        assertThat(intent.getQuantity()).isEqualTo(20);
+        assertThat(intent.getUnitPrice()).isEqualByComparingTo("50.00");
+        assertThat(intent.getTotalAmount()).isEqualByComparingTo("880.00");
+        assertThat(intent.getRaffleCombo()).isSameAs(combo);
+        verify(transactionRepository, never()).save(any());
 
         combo.update(new BigDecimal("850.00"), true, 3, false, false);
-        assertThat(transaction.getQuantity()).isEqualTo(20);
-        assertThat(transaction.getTotalAmount()).isEqualByComparingTo("880.00");
+        assertThat(intent.getQuantity()).isEqualTo(20);
+        assertThat(intent.getTotalAmount()).isEqualByComparingTo("880.00");
     }
 
     private PurchaseIntentServiceImpl service() {

@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './AuthContext';
 import { AdminCashPaymentPage } from './AdminCashPaymentPage';
 import { AdminDashboardPage } from './AdminDashboardPage';
 import { AdminDrawPage } from './AdminDrawPage';
+import { AdminMessagesPage } from './AdminMessagesPage';
 import { AdminSettingsPage } from './AdminSettingsPage';
 import { AdminLoginPage } from './AdminLoginPage';
 
@@ -49,6 +50,10 @@ function AdminRoutes() {
 
   if (path === '/admin/settings') {
     return <AdminSettingsPage />;
+  }
+
+  if (path === '/admin/messages') {
+    return <AdminMessagesPage />;
   }
 
   return (

@@ -125,7 +125,7 @@ class PurchaseIdempotencyConcurrencyIntegrationTests {
     }
 
     @Test
-    void simultaneousOnlinePostsWithSameKeyReturnOneTransactionAndCheckout() throws Exception {
+    void simultaneousOnlinePostsWithSameKeyReturnOneCheckoutWithoutSavingTransaction() throws Exception {
         String idempotencyKey = "simultaneous-online-key";
         CountDownLatch providerCalls = new CountDownLatch(2);
         AtomicInteger createdCheckouts = new AtomicInteger();
@@ -151,19 +151,23 @@ class PurchaseIdempotencyConcurrencyIntegrationTests {
 
         assertThat(responses).hasSize(2).allMatch(responses.getFirst()::equals);
         assertThat(createdCheckouts).hasValue(1);
-        assertThat(transactionRepository.count()).isEqualTo(1);
+        assertThat(transactionRepository.count()).isZero();
         assertThat(purchaseIntentRepository.findAll())
                 .singleElement()
                 .extracting(intent -> intent.getStatus())
                 .isEqualTo(PurchaseIntentStatus.COMPLETED);
+        assertThat(capacityReservationRepository.count()).isZero();
+        RaffleCapacity capacity =
+                raffleCapacityRepository.findById(RaffleCapacity.SINGLETON_ID).orElseThrow();
+        assertThat(capacity.getReservedQuantity()).isZero();
+        assertThat(capacity.getAllocatedQuantity()).isZero();
+
+        transactionService.getStatus(responses.getFirst().externalReference(), null);
+        assertThat(transactionRepository.count()).isEqualTo(1);
         assertThat(capacityReservationRepository.findAll())
                 .singleElement()
                 .extracting(reservation -> reservation.getStatus())
                 .isEqualTo(CapacityReservationStatus.ACTIVE);
-        RaffleCapacity capacity =
-                raffleCapacityRepository.findById(RaffleCapacity.SINGLETON_ID).orElseThrow();
-        assertThat(capacity.getReservedQuantity()).isEqualTo(2);
-        assertThat(capacity.getAllocatedQuantity()).isZero();
     }
 
     @Test
@@ -203,11 +207,11 @@ class PurchaseIdempotencyConcurrencyIntegrationTests {
         assertThatThrownBy(() -> transactionService.create(
                         "payload-conflict-key", new TransactionCreateRequest("Guest User", "(11) 99999-9999", 2)))
                 .isInstanceOf(IdempotencyConflictException.class);
-        assertThat(transactionRepository.count()).isEqualTo(1);
-        assertThat(capacityReservationRepository.count()).isEqualTo(1);
+        assertThat(transactionRepository.count()).isZero();
+        assertThat(capacityReservationRepository.count()).isZero();
         RaffleCapacity capacity =
                 raffleCapacityRepository.findById(RaffleCapacity.SINGLETON_ID).orElseThrow();
-        assertThat(capacity.getReservedQuantity()).isEqualTo(1);
+        assertThat(capacity.getReservedQuantity()).isZero();
     }
 
     private static <T> List<T> runConcurrently(int count, ThrowingSupplier<T> supplier) throws Exception {

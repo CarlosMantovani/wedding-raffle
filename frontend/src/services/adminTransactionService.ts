@@ -2,6 +2,7 @@ import { apiClient } from '../config/apiClient';
 import type {
   AdminTransactionResponse,
   AdminTransactionSummaryResponse,
+  AdminGiftMessageResponse,
   CapacityReviewDecision,
   CashTransactionCreateRequest,
   CashTransactionCreateResponse,
@@ -25,6 +26,18 @@ export const adminTransactionService = {
     const response = await apiClient.get<PageResponse<AdminTransactionResponse>>('/transactions', {
       params: {
         query: params.query || undefined,
+        page: params.page,
+        size: params.size,
+        sort: params.sort,
+      },
+    });
+
+    return response.data;
+  },
+
+  async listGiftMessages(params: Omit<AdminTransactionListParams, 'query'>): Promise<PageResponse<AdminGiftMessageResponse>> {
+    const response = await apiClient.get<PageResponse<AdminGiftMessageResponse>>('/transactions/messages', {
+      params: {
         page: params.page,
         size: params.size,
         sort: params.sort,

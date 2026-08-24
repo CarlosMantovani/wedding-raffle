@@ -35,6 +35,9 @@ public class Transaction {
     @Column(length = 320)
     private String email;
 
+    @Column(length = 280)
+    private String giftMessage;
+
     @Column(nullable = false)
     private Integer quantity;
 
@@ -114,6 +117,7 @@ public class Transaction {
                 email,
                 "0000000000",
                 email,
+                null,
                 quantity,
                 inferUnitPrice(totalAmount, quantity),
                 totalAmount,
@@ -135,6 +139,7 @@ public class Transaction {
                 name,
                 phone,
                 email,
+                null,
                 quantity,
                 inferUnitPrice(totalAmount, quantity),
                 totalAmount,
@@ -147,6 +152,7 @@ public class Transaction {
             String name,
             String phone,
             String email,
+            String giftMessage,
             Integer quantity,
             BigDecimal unitPrice,
             BigDecimal totalAmount,
@@ -156,12 +162,26 @@ public class Transaction {
         this.name = name;
         this.phone = phone;
         this.email = email;
+        this.giftMessage = giftMessage;
         this.quantity = quantity;
         this.unitPrice = unitPrice;
         this.totalAmount = totalAmount;
         this.status = status;
         this.paymentMethod = paymentMethod;
         this.externalReference = externalReference;
+    }
+
+    public Transaction(
+            String name,
+            String phone,
+            String email,
+            Integer quantity,
+            BigDecimal unitPrice,
+            BigDecimal totalAmount,
+            PaymentStatus status,
+            PaymentMethod paymentMethod,
+            String externalReference) {
+        this(name, phone, email, null, quantity, unitPrice, totalAmount, status, paymentMethod, externalReference);
     }
 
     public Long getId() {
@@ -178,6 +198,10 @@ public class Transaction {
 
     public String getEmail() {
         return email;
+    }
+
+    public String getGiftMessage() {
+        return giftMessage;
     }
 
     public Integer getQuantity() {

@@ -16,6 +16,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.weddingraffle.rifa.config.AppProperties;
 import com.weddingraffle.rifa.config.SecurityConfig;
+import com.weddingraffle.rifa.dto.AdminGiftMessageResponse;
 import com.weddingraffle.rifa.dto.AdminTransactionResponse;
 import com.weddingraffle.rifa.dto.AdminTransactionSummaryResponse;
 import com.weddingraffle.rifa.dto.CapacityReviewDecision;
@@ -100,6 +101,22 @@ class AdminTransactionControllerTests {
                 .andExpect(jsonPath("$.content[0].name").value("Guest User"))
                 .andExpect(jsonPath("$.content[0].status").value("APROVADO"))
                 .andExpect(jsonPath("$.content[0].luckyNumbers[0]").value("00001"));
+    }
+
+    @Test
+    void listGiftMessagesReturnsPagedMessagesForAdmin() throws Exception {
+        when(adminTransactionService.listGiftMessages(any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(new AdminGiftMessageResponse(
+                        "external",
+                        OffsetDateTime.parse("2026-08-14T18:00:00-03:00"),
+                        "Guest User",
+                        "Felicidades ao casal!"))));
+
+        mockMvc.perform(get("/transactions/messages").with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].externalReference").value("external"))
+                .andExpect(jsonPath("$.content[0].name").value("Guest User"))
+                .andExpect(jsonPath("$.content[0].giftMessage").value("Felicidades ao casal!"));
     }
 
     @Test

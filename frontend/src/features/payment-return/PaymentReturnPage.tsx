@@ -13,12 +13,19 @@ function getExternalReference(searchParams: URLSearchParams) {
   return searchParams.get('external_reference') ?? searchParams.get('externalReference') ?? '';
 }
 
+function getPaymentId(searchParams: URLSearchParams) {
+  return (
+    searchParams.get('payment_id') ?? searchParams.get('collection_id') ?? searchParams.get('paymentId') ?? ''
+  );
+}
+
 export function PaymentReturnPage() {
   const searchParams = new URLSearchParams(window.location.search);
   const externalReference = getExternalReference(searchParams);
+  const paymentId = getPaymentId(searchParams);
 
   const { checkStatusNow, isOnline, isVisible, pollingExpired, statusQuery } =
-    usePaymentStatusPolling(externalReference);
+    usePaymentStatusPolling(externalReference, paymentId);
 
   if (!externalReference) {
     return (

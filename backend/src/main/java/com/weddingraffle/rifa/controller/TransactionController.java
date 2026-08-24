@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -58,8 +59,9 @@ public class TransactionController {
 
     @Operation(summary = "Get transaction payment status")
     @GetMapping("/{externalReference}/status")
-    public ResponseEntity<TransactionStatusResponse> getStatus(@PathVariable String externalReference) {
-        return ResponseEntity.ok(transactionService.getStatus(externalReference));
+    public ResponseEntity<TransactionStatusResponse> getStatus(
+            @PathVariable String externalReference, @RequestParam(required = false) String paymentId) {
+        return ResponseEntity.ok(transactionService.getStatus(externalReference, paymentId));
     }
 
     @Operation(summary = "Download lucky numbers PDF")

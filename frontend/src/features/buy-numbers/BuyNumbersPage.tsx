@@ -19,13 +19,16 @@ import { isPastDateTime } from '../../utils/dateTime';
 import { formatCurrency } from '../../utils/formatters';
 import { clearIdempotencyKey, getOrCreateIdempotencyKey } from '../../utils/idempotency';
 import { formatPhoneNumber, normalizePhoneNumber } from '../../utils/phone';
+import { CountdownPanel } from './CountdownPanel';
 import { buyerSchema, type BuyerFormData } from './schemas';
 
 const CHECKOUT_IDEMPOTENCY_ACTION = 'mercado-pago-checkout';
+const GIFT_MESSAGE_MAX_LENGTH = 280;
 
 export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolean }) {
   const [buyer, setBuyer] = useState<BuyerFormData | null>(null);
   const [quantity, setQuantity] = useState(1);
+  const [giftMessage, setGiftMessage] = useState('');
   const [selectedComboId, setSelectedComboId] = useState<number | null>(null);
   const [, setTick] = useState(0);
 
@@ -103,8 +106,11 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
 
   const handlePay = () => {
     if (!buyer || isDrawClosed || createTransactionMutation.isPending) return;
+    const trimmedGiftMessage = giftMessage.trim();
+    if (trimmedGiftMessage.length > GIFT_MESSAGE_MAX_LENGTH) return;
     const request = {
       ...buyer,
+      ...(trimmedGiftMessage ? { giftMessage: trimmedGiftMessage } : {}),
       quantity,
       ...(selectedComboId === null ? {} : { comboId: selectedComboId }),
     };
@@ -146,6 +152,8 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
             Voltar
           </a>
         ) : null}
+
+        {!isDrawClosed ? <CountdownPanel scheduledDrawAt={scheduledDrawAt} /> : null}
 
         {!isDrawClosed ? <StepProgress currentStep={currentStep} /> : null}
 
@@ -329,6 +337,23 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
               </dl>
             </Card>
 
+            <Card className="bg-white/85 shadow-none">
+              <label className="block text-sm font-semibold text-charcoal" htmlFor="gift-message">
+                Mensagem para o casal (opcional)
+              </label>
+              <textarea
+                className="mt-2 min-h-28 w-full resize-none rounded-lg border border-line bg-white px-4 py-3 text-base text-charcoal outline-none transition placeholder:text-warm-gray/60 focus:border-gold focus:ring-2 focus:ring-gold/20"
+                id="gift-message"
+                maxLength={GIFT_MESSAGE_MAX_LENGTH}
+                onChange={(event) => setGiftMessage(event.target.value)}
+                placeholder="Deixe uma mensagem de carinho"
+                value={giftMessage}
+              />
+              <p className="mt-2 text-right text-xs font-semibold text-warm-gray">
+                {giftMessage.length}/{GIFT_MESSAGE_MAX_LENGTH}
+              </p>
+            </Card>
+
             {quoteQuery.isError ? (
               <p
                 className="rounded-lg border border-wine/30 bg-white px-4 py-3 text-sm text-wine"
@@ -348,7 +373,12 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
             ) : null}
 
             <Button
-              disabled={!quoteQuery.data || quoteQuery.isFetching || !quoteMatchesSelection}
+              disabled={
+                !quoteQuery.data ||
+                quoteQuery.isFetching ||
+                !quoteMatchesSelection ||
+                giftMessage.trim().length > GIFT_MESSAGE_MAX_LENGTH
+              }
               isLoading={createTransactionMutation.isPending}
               onClick={handlePay}
               type="button"
@@ -373,7 +403,7 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
 
 interface PurchaseSubmission {
   idempotencyKey: string;
-  request: BuyerFormData & { quantity: number; comboId?: number };
+  request: BuyerFormData & { giftMessage?: string; quantity: number; comboId?: number };
 }
 
 function ComboCard({

@@ -10,6 +10,7 @@ export interface AdminTransactionResponse {
   name: string;
   phone: string;
   email: string | null;
+  giftMessage?: string | null;
   paymentMethod: PaymentMethod;
   capacityReviewStatus?: CapacityReviewStatus | null;
   quantity: number;
@@ -28,6 +29,7 @@ export interface CashTransactionCreateRequest {
   name: string;
   phone: string;
   email?: string;
+  giftMessage?: string;
   quantity: number;
 }
 
@@ -75,6 +77,13 @@ export interface UnitPriceUpdateRequest {
 
 export interface ScheduledDrawAtUpdateRequest {
   scheduledDrawAt: string;
+}
+
+export interface AdminGiftMessageResponse {
+  externalReference: string;
+  createdAt: string;
+  name: string;
+  giftMessage: string;
 }
 
 export interface RaffleComboUpdateRequest {

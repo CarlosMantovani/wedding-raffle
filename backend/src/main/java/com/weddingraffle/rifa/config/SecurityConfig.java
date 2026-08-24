@@ -90,7 +90,8 @@ public class SecurityConfig {
                                 "/raffle/result",
                                 "/raffle/eligible-numbers",
                                 "/transactions",
-                                "/transactions/summary")
+                                "/transactions/summary",
+                                "/transactions/messages")
                         .hasRole("ADMIN")
                         .anyRequest()
                         .denyAll())
