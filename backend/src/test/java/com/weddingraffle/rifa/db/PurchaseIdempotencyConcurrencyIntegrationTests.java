@@ -24,6 +24,7 @@ import com.weddingraffle.rifa.repository.RaffleCapacityRepository;
 import com.weddingraffle.rifa.repository.TransactionRepository;
 import com.weddingraffle.rifa.service.AdminTransactionService;
 import com.weddingraffle.rifa.service.TransactionService;
+import com.zaxxer.hikari.HikariDataSource;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
@@ -81,6 +82,9 @@ class PurchaseIdempotencyConcurrencyIntegrationTests {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private HikariDataSource dataSource;
+
     @MockBean
     private PaymentProviderClient paymentProviderClient;
 
@@ -132,6 +136,7 @@ class PurchaseIdempotencyConcurrencyIntegrationTests {
             String key = invocation.getArgument(1);
             providerCalls.countDown();
             providerCalls.await(10, TimeUnit.SECONDS);
+            assertThat(dataSource.getHikariPoolMXBean().getActiveConnections()).isZero();
             return checkouts.computeIfAbsent(key, ignored -> {
                 createdCheckouts.incrementAndGet();
                 return new CheckoutPreferenceResponse(

@@ -1,11 +1,14 @@
 package com.weddingraffle.rifa.integration;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.mercadopago.MercadoPagoConfig;
 import com.mercadopago.client.merchantorder.MerchantOrderClient;
 import com.mercadopago.client.payment.PaymentClient;
 import com.mercadopago.client.preference.PreferenceClient;
@@ -15,12 +18,35 @@ import com.mercadopago.resources.payment.Payment;
 import com.mercadopago.resources.payment.PaymentOrder;
 import com.mercadopago.resources.preference.Preference;
 import com.weddingraffle.rifa.config.AppProperties;
+import com.weddingraffle.rifa.exception.ExternalPaymentException;
+import java.io.IOException;
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.OffsetDateTime;
+import org.apache.http.protocol.HttpContext;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 class MercadoPagoClientTests {
+
+    @Test
+    void configuresSdkTimeoutsPoolAndDisablesHiddenTransportRetries() {
+        AppProperties properties = appProperties();
+        MercadoPagoResilienceExecutor executor = new MercadoPagoResilienceExecutor(properties, Clock.systemUTC());
+        try {
+            new MercadoPagoClient(properties, executor, new MercadoPagoFailureClassifier(Clock.systemUTC()));
+
+            assertThat(MercadoPagoConfig.getConnectionTimeout()).isEqualTo(2_000);
+            assertThat(MercadoPagoConfig.getConnectionRequestTimeout()).isEqualTo(500);
+            assertThat(MercadoPagoConfig.getSocketTimeout()).isEqualTo(5_000);
+            assertThat(MercadoPagoConfig.getMaxConnections()).isEqualTo(10);
+            assertThat(MercadoPagoConfig.getRetryHandler()
+                            .retryRequest(new IOException("test"), 1, mock(HttpContext.class)))
+                    .isFalse();
+        } finally {
+            executor.shutdown();
+        }
+    }
 
     @Test
     void sendsIdempotencyKeyWhenCreatingPreference() throws Exception {
@@ -40,8 +66,23 @@ class MercadoPagoClientTests {
         ArgumentCaptor<MPRequestOptions> optionsCaptor = ArgumentCaptor.forClass(MPRequestOptions.class);
         verify(preferenceClient).create(any(), optionsCaptor.capture());
         assertThat(optionsCaptor.getValue().getCustomHeaders()).containsEntry("X-Idempotency-Key", "checkout-key-123");
+        assertThat(optionsCaptor.getValue().getConnectionTimeout()).isEqualTo(2_000);
+        assertThat(optionsCaptor.getValue().getConnectionRequestTimeout()).isEqualTo(500);
+        assertThat(optionsCaptor.getValue().getSocketTimeout()).isEqualTo(5_000);
         assertThat(response)
                 .isEqualTo(new CheckoutPreferenceResponse("preference-123", "https://checkout.example.com", "456"));
+    }
+
+    @Test
+    void rejectsMutablePreferenceCallWithoutAnIdempotencyKey() {
+        PreferenceClient preferenceClient = mock(PreferenceClient.class);
+        MercadoPagoClient client = new MercadoPagoClient(
+                appProperties(), mock(PaymentClient.class), preferenceClient, mock(MerchantOrderClient.class));
+
+        assertThatThrownBy(() -> client.createPreference(preferenceRequest(), " "))
+                .isInstanceOf(ExternalPaymentException.class)
+                .hasMessageContaining("requires an idempotency key");
+        verifyNoInteractions(preferenceClient);
     }
 
     @Test
@@ -64,10 +105,12 @@ class MercadoPagoClientTests {
         when(payment.getDateLastUpdated()).thenReturn(updatedAt);
         when(payment.getOrder()).thenReturn(paymentOrder);
         when(paymentOrder.getId()).thenReturn(789L);
-        when(paymentClient.get(123L)).thenReturn(payment);
+        when(paymentClient.get(org.mockito.ArgumentMatchers.eq(123L), any(MPRequestOptions.class)))
+                .thenReturn(payment);
         when(merchantOrder.getPreferenceId()).thenReturn("preference-123");
         when(merchantOrder.getExternalReference()).thenReturn("external-reference-123");
-        when(merchantOrderClient.get(789L)).thenReturn(merchantOrder);
+        when(merchantOrderClient.get(org.mockito.ArgumentMatchers.eq(789L), any(MPRequestOptions.class)))
+                .thenReturn(merchantOrder);
         MercadoPagoClient client = new MercadoPagoClient(
                 appProperties(), paymentClient, mock(PreferenceClient.class), merchantOrderClient);
 
@@ -86,7 +129,7 @@ class MercadoPagoClientTests {
                         "accredited",
                         createdAt,
                         updatedAt));
-        verify(merchantOrderClient).get(789L);
+        verify(merchantOrderClient).get(org.mockito.ArgumentMatchers.eq(789L), any(MPRequestOptions.class));
     }
 
     private static AppProperties appProperties() {
@@ -102,5 +145,9 @@ class MercadoPagoClientTests {
                         "http://localhost:5173/payment-return/failure",
                         "http://localhost:5173/payment-return/pending",
                         new AppProperties.Retry(1, 1, 1)));
+    }
+
+    private static CheckoutPreferenceRequest preferenceRequest() {
+        return new CheckoutPreferenceRequest("Guest User", null, 2, new BigDecimal("10.00"), "external-reference-123");
     }
 }
