@@ -28,3 +28,8 @@ docker-compose.yml
 
 figma-phase-6-reference/
 ngrok.yml
+AUDIT_ACTION_PLAN.md
+CONCURRENCY_AUDIT.md
+INFRA_CAPACITY_AUDIT.md
+SECURITY_AUDIT.md
+PERFORMANCE_AUDIT.md

@@ -14,18 +14,28 @@ export const transactionService = {
     return response.data;
   },
 
-  async create(request: TransactionCreateRequest): Promise<TransactionCreateResponse> {
-    const response = await apiClient.post<TransactionCreateResponse>('/transactions', request);
+  async create(
+    request: TransactionCreateRequest,
+    idempotencyKey: string,
+  ): Promise<TransactionCreateResponse> {
+    const response = await apiClient.post<TransactionCreateResponse>('/transactions', request, {
+      headers: { 'Idempotency-Key': idempotencyKey },
+    });
     return response.data;
   },
 
   async getStatus(externalReference: string): Promise<TransactionStatusResponse> {
-    const response = await apiClient.get<TransactionStatusResponse>(`/transactions/${externalReference}/status`);
+    const response = await apiClient.get<TransactionStatusResponse>(
+      `/transactions/${externalReference}/status`,
+    );
     return response.data;
   },
 
   async recover(request: TransactionRecoveryRequest): Promise<TransactionStatusResponse> {
-    const response = await apiClient.post<TransactionStatusResponse>('/transactions/recovery', request);
+    const response = await apiClient.post<TransactionStatusResponse>(
+      '/transactions/recovery',
+      request,
+    );
     return response.data;
   },
 

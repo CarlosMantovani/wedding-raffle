@@ -6,7 +6,7 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { TextInput } from '../../components/ui/TextInput';
 import { adminTransactionService } from '../../services/adminTransactionService';
-import type { AdminTransactionResponse, AdminTransactionSummaryResponse } from '../../types/admin';
+import type { AdminTransactionResponse, AdminTransactionSummaryResponse, CapacityReviewDecision } from '../../types/admin';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
 import { formatPhoneNumber } from '../../utils/phone';
 import { useAuth } from './AuthContext';
@@ -55,6 +55,14 @@ export function AdminDashboardPage() {
       adminTransactionService.getParticipantLuckyNumbersPdf(transaction.externalReference),
     onSuccess: (pdf, transaction) => {
       downloadPdf(pdf, `Numeros_do_participante_${shortReference(transaction.externalReference)}.pdf`);
+    },
+  });
+  const capacityReviewMutation = useMutation({
+    mutationFn: ({ decision, transaction }: { decision: CapacityReviewDecision; transaction: AdminTransactionResponse }) =>
+      adminTransactionService.resolveCapacityReview(transaction.externalReference, decision),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['admin-transactions'] });
+      void queryClient.invalidateQueries({ queryKey: ['admin-transaction-summary'] });
     },
   });
 
@@ -170,6 +178,7 @@ export function AdminDashboardPage() {
               downloadingPdfExternalReference={participantPdfMutation.variables?.externalReference ?? null}
               isDeleting={deleteCashTransactionMutation.isPending}
               isDownloadingPdf={participantPdfMutation.isPending}
+              isResolvingCapacityReview={capacityReviewMutation.isPending}
               onDeleteCashTransaction={(transaction) => {
                 const confirmed = window.confirm(
                   areMetricsVisible
@@ -181,6 +190,10 @@ export function AdminDashboardPage() {
                 }
               }}
               onDownloadParticipantPdf={(transaction) => participantPdfMutation.mutate(transaction)}
+              onResolveCapacityReview={(transaction, decision) =>
+                capacityReviewMutation.mutate({ decision, transaction })
+              }
+              resolvingCapacityReviewReference={capacityReviewMutation.variables?.transaction.externalReference ?? null}
               transactions={transactions}
             />
           ) : null}
@@ -188,6 +201,12 @@ export function AdminDashboardPage() {
           {participantPdfMutation.isError ? (
             <p className="mt-4 rounded-lg border border-terracotta/30 bg-blush px-4 py-3 text-sm text-terracotta-dark" role="alert">
               Não foi possível baixar o PDF do participante.
+            </p>
+          ) : null}
+
+          {capacityReviewMutation.isError ? (
+            <p className="mt-4 rounded-lg border border-terracotta/30 bg-blush px-4 py-3 text-sm text-terracotta-dark" role="alert">
+              Não foi possível registrar a decisão administrativa.
             </p>
           ) : null}
 
@@ -271,8 +290,11 @@ function TransactionTable({
   downloadingPdfExternalReference,
   isDeleting,
   isDownloadingPdf,
+  isResolvingCapacityReview,
   onDeleteCashTransaction,
   onDownloadParticipantPdf,
+  onResolveCapacityReview,
+  resolvingCapacityReviewReference,
   transactions,
 }: {
   areSensitiveValuesVisible: boolean;
@@ -280,8 +302,11 @@ function TransactionTable({
   downloadingPdfExternalReference: string | null;
   isDeleting: boolean;
   isDownloadingPdf: boolean;
+  isResolvingCapacityReview: boolean;
   onDeleteCashTransaction: (transaction: AdminTransactionResponse) => void;
   onDownloadParticipantPdf: (transaction: AdminTransactionResponse) => void;
+  onResolveCapacityReview: (transaction: AdminTransactionResponse, decision: CapacityReviewDecision) => void;
+  resolvingCapacityReviewReference: string | null;
   transactions: AdminTransactionResponse[];
 }) {
   const [expandedTransactions, setExpandedTransactions] = useState<Set<string>>(() => new Set());
@@ -352,7 +377,7 @@ function TransactionTable({
               <td className="px-3 py-4 text-warm-gray">{areSensitiveValuesVisible ? transaction.quantity : maskedValue}</td>
               <td className="px-3 py-4 text-warm-gray">{areSensitiveValuesVisible ? formatCurrency(transaction.totalAmount) : maskedValue}</td>
               <td className="px-3 py-4">
-                <StatusBadge status={transaction.status} />
+                <StatusBadge capacityReviewStatus={transaction.capacityReviewStatus} status={transaction.status} />
               </td>
               <td className="w-80 min-w-80 px-3 py-4">
                 {displayedLuckyNumbers.length > 0 ? (
@@ -379,6 +404,32 @@ function TransactionTable({
               </td>
               <td className="px-3 py-4 text-right">
                 <div className="flex items-center justify-end gap-2">
+                {transaction.capacityReviewStatus === 'PENDING' ? (
+                  <div className="flex min-w-44 flex-col gap-2">
+                    <button
+                      className="rounded-lg border border-terracotta/30 px-3 py-2 text-xs font-bold text-terracotta-dark transition hover:bg-blush disabled:opacity-50"
+                      disabled={isResolvingCapacityReview && resolvingCapacityReviewReference === transaction.externalReference}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onResolveCapacityReview(transaction, 'REFUND_COMPLETED');
+                      }}
+                      type="button"
+                    >
+                      Reembolso realizado manualmente
+                    </button>
+                    <button
+                      className="rounded-lg border border-green/30 px-3 py-2 text-xs font-bold text-green transition hover:bg-ivory-deep disabled:opacity-50"
+                      disabled={isResolvingCapacityReview && resolvingCapacityReviewReference === transaction.externalReference}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onResolveCapacityReview(transaction, 'CONTRIBUTION_WITHOUT_NUMBERS');
+                      }}
+                      type="button"
+                    >
+                      Contribuição mantida sem números
+                    </button>
+                  </div>
+                ) : null}
                   <button
                     aria-label={
                       areSensitiveValuesVisible
@@ -442,7 +493,13 @@ function shortReference(externalReference: string) {
   return sanitizedReference.length <= 8 ? sanitizedReference : sanitizedReference.slice(0, 8);
 }
 
-function StatusBadge({ status }: { status: AdminTransactionResponse['status'] }) {
+function StatusBadge({
+  capacityReviewStatus,
+  status,
+}: {
+  capacityReviewStatus: AdminTransactionResponse['capacityReviewStatus'];
+  status: AdminTransactionResponse['status'];
+}) {
   const styles = {
     APROVADO: 'bg-olive/15 text-olive',
     PENDENTE: 'bg-gold/15 text-[#8A6A00]',
@@ -452,6 +509,20 @@ function StatusBadge({ status }: { status: AdminTransactionResponse['status'] })
     CHARGEBACK: 'bg-terracotta/15 text-terracotta-dark',
     EM_MEDIACAO: 'bg-gold/15 text-[#8A6A00]',
   };
+
+  if (capacityReviewStatus) {
+    const reviewLabels = {
+      PENDING: 'REVISÃO DE CAPACIDADE',
+      REFUND_COMPLETED: 'REEMBOLSO REALIZADO MANUALMENTE',
+      CONTRIBUTION_WITHOUT_NUMBERS: 'CONTRIBUIÇÃO MANTIDA SEM NÚMEROS',
+    };
+    const reviewStyle = capacityReviewStatus === 'CONTRIBUTION_WITHOUT_NUMBERS'
+      ? 'bg-olive/15 text-olive'
+      : capacityReviewStatus === 'PENDING'
+        ? 'bg-gold/15 text-[#8A6A00]'
+        : 'bg-terracotta/15 text-terracotta-dark';
+    return <span className={`rounded-full px-3 py-1 text-xs font-bold ${reviewStyle}`}>{reviewLabels[capacityReviewStatus]}</span>;
+  }
 
   return <span className={`rounded-full px-3 py-1 text-xs font-bold ${styles[status]}`}>{status}</span>;
 }

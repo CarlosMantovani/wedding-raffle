@@ -132,6 +132,17 @@ export function PaymentReturnPage() {
     );
   }
 
+  if (transaction.status === 'APROVADO') {
+    return (
+      <PaymentState
+        icon={<Check aria-hidden="true" className="h-10 w-10 text-green" />}
+        title="Pagamento confirmado"
+        message={publicMessages.approvedWithoutNumbers}
+        tone="confirmed"
+      />
+    );
+  }
+
   if (transaction.status === 'CANCELADO') {
     return <PaymentState title="Pagamento cancelado" message={publicMessages.cancelled} tone="error" />;
   }
@@ -263,11 +274,11 @@ interface PaymentStateProps {
   message: string;
   recoveryCode?: string;
   title: string;
-  tone: 'error' | 'neutral' | 'pending';
+  tone: 'confirmed' | 'error' | 'neutral' | 'pending';
 }
 
 function PaymentState({ icon, message, recoveryCode, title, tone }: PaymentStateProps) {
-  const iconColor = tone === 'pending' ? 'text-gold' : tone === 'neutral' ? 'text-terracotta' : 'text-terracotta-dark';
+  const iconColor = tone === 'pending' ? 'text-gold' : tone === 'confirmed' ? 'text-green' : tone === 'neutral' ? 'text-terracotta' : 'text-terracotta-dark';
 
   return (
     <main className="min-h-screen bg-cream px-6 pb-16 pt-16 text-charcoal">
@@ -282,7 +293,7 @@ function PaymentState({ icon, message, recoveryCode, title, tone }: PaymentState
         </div>
         {recoveryCode ? <RecoveryCodeCard recoveryCode={recoveryCode} /> : null}
         <div className="flex w-full flex-col gap-3">
-          {tone !== 'pending' ? (
+          {tone === 'error' ? (
             <a
               className="inline-flex min-h-12 w-full items-center justify-center rounded-lg bg-terracotta px-5 py-3 text-sm font-semibold text-white shadow-button transition hover:bg-terracotta-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta"
               href="/"

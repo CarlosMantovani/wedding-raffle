@@ -16,10 +16,13 @@ import { transactionService } from '../../services/transactionService';
 import type { RaffleResult } from '../../types/home';
 import { isPastDateTime } from '../../utils/dateTime';
 import { formatCurrency } from '../../utils/formatters';
+import { clearIdempotencyKey, getOrCreateIdempotencyKey } from '../../utils/idempotency';
 import { formatPhoneNumber, normalizePhoneNumber } from '../../utils/phone';
 import { FlagRankingPanel } from '../flag-ranking/FlagRankingPanel';
 import { CountdownPanel } from './CountdownPanel';
 import { buyerSchema, type BuyerFormData } from './schemas';
+
+const CHECKOUT_IDEMPOTENCY_ACTION = 'mercado-pago-checkout';
 
 export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolean }) {
   const [buyer, setBuyer] = useState<BuyerFormData | null>(null);
@@ -56,8 +59,10 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
   }, [scheduledDrawAt]);
 
   const createTransactionMutation = useMutation({
-    mutationFn: (request: BuyerFormData & { quantity: number }) => transactionService.create(request),
-    onSuccess: (response) => {
+    mutationFn: ({ idempotencyKey, request }: PurchaseSubmission) =>
+      transactionService.create(request, idempotencyKey),
+    onSuccess: (response, submission) => {
+      clearIdempotencyKey(CHECKOUT_IDEMPOTENCY_ACTION, submission.idempotencyKey);
       window.location.assign(response.checkoutUrl);
     },
   });
@@ -74,7 +79,11 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
 
   const handlePay = () => {
     if (!buyer || isDrawClosed || createTransactionMutation.isPending) return;
-    createTransactionMutation.mutate({ ...buyer, quantity });
+    const request = { ...buyer, quantity };
+    createTransactionMutation.mutate({
+      idempotencyKey: getOrCreateIdempotencyKey(CHECKOUT_IDEMPOTENCY_ACTION, request),
+      request,
+    });
   };
 
   const currentStep: 1 | 2 = buyer ? 2 : 1;
@@ -108,161 +117,203 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
 
         {!isDrawClosed ? <StepProgress currentStep={currentStep} /> : null}
 
-            {isDrawClosed ? (
-              <Card className="border border-line bg-white/90 text-center shadow-none">
-                <h1 className="font-serif text-2xl font-bold text-green">Sorteio encerrado</h1>
-                <p className="mx-auto mt-3 max-w-xs text-sm leading-relaxed text-warm-gray">{publicMessages.drawClosed}</p>
-              </Card>
-            ) : !buyer ? (
-              <Card>
-                <form className="space-y-5" onSubmit={handleSubmit(onSubmitBuyer)}>
-                  <div>
-                    <h1 className="font-serif text-xl font-semibold text-charcoal">Vamos começar!</h1>
-                    <p className="mt-1 text-sm text-warm-gray">Preencha seus dados e escolha a quantidade de números da sorte.</p>
-                  </div>
+        {isDrawClosed ? (
+          <Card className="border border-line bg-white/90 text-center shadow-none">
+            <h1 className="font-serif text-2xl font-bold text-green">Sorteio encerrado</h1>
+            <p className="mx-auto mt-3 max-w-xs text-sm leading-relaxed text-warm-gray">
+              {publicMessages.drawClosed}
+            </p>
+          </Card>
+        ) : !buyer ? (
+          <Card>
+            <form className="space-y-5" onSubmit={handleSubmit(onSubmitBuyer)}>
+              <div>
+                <h1 className="font-serif text-xl font-semibold text-charcoal">Vamos começar!</h1>
+                <p className="mt-1 text-sm text-warm-gray">
+                  Preencha seus dados e escolha a quantidade de números da sorte.
+                </p>
+              </div>
 
-                  <TextInput
-                    autoComplete="name"
-                    error={errors.name?.message}
-                    id="buyer-name"
-                    label="Nome"
-                    placeholder="Seu nome"
-                    {...register('name')}
-                  />
+              <TextInput
+                autoComplete="name"
+                error={errors.name?.message}
+                id="buyer-name"
+                label="Nome"
+                placeholder="Seu nome"
+                {...register('name')}
+              />
 
-                  <TextInput
-                    autoComplete="tel"
-                    error={errors.phone?.message}
-                    helper="Use um telefone com DDD."
-                    id="buyer-phone"
-                    inputMode="tel"
-                    label="Telefone"
-                    maxLength={15}
-                    placeholder="(11) 99999-9999"
-                    type="tel"
-                    {...register('phone', {
-                      onChange: (event) => {
-                        event.target.value = formatPhoneNumber(event.target.value);
-                      },
-                    })}
-                  />
+              <TextInput
+                autoComplete="tel"
+                error={errors.phone?.message}
+                helper="Use um telefone com DDD."
+                id="buyer-phone"
+                inputMode="tel"
+                label="Telefone"
+                maxLength={15}
+                placeholder="(11) 99999-9999"
+                type="tel"
+                {...register('phone', {
+                  onChange: (event) => {
+                    event.target.value = formatPhoneNumber(event.target.value);
+                  },
+                })}
+              />
 
-                  <Button disabled={!isValid || homeSummaryQuery.isLoading} type="submit">
-                    Continuar
-                  </Button>
-                  <a
-                    className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-green bg-white/70 px-4 py-2 text-sm font-bold text-green transition hover:bg-ivory-deep focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green"
-                    href="/recover"
-                  >
-                    <Search aria-hidden="true" className="h-4 w-4" />
-                    Consultar meus números
-                  </a>
-                </form>
-              </Card>
-            ) : (
-              <section className="space-y-4" aria-labelledby="quantity-title">
-                <div className="text-center">
-                  <h1 className="font-serif text-lg text-charcoal" id="quantity-title">
-                    Quantos números você quer?
-                  </h1>
-                  <button
-                    className="mt-2 text-xs font-semibold text-green underline underline-offset-4"
-                    onClick={() => setBuyer(null)}
-                    type="button"
-                  >
-                    Alterar dados
-                  </button>
+              <Button disabled={!isValid || homeSummaryQuery.isLoading} type="submit">
+                Continuar
+              </Button>
+              <a
+                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-green bg-white/70 px-4 py-2 text-sm font-bold text-green transition hover:bg-ivory-deep focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green"
+                href="/recover"
+              >
+                <Search aria-hidden="true" className="h-4 w-4" />
+                Consultar meus números
+              </a>
+            </form>
+          </Card>
+        ) : (
+          <section className="space-y-4" aria-labelledby="quantity-title">
+            <div className="text-center">
+              <h1 className="font-serif text-lg text-charcoal" id="quantity-title">
+                Quantos números você quer?
+              </h1>
+              <button
+                className="mt-2 text-xs font-semibold text-green underline underline-offset-4"
+                onClick={() => setBuyer(null)}
+                type="button"
+              >
+                Alterar dados
+              </button>
+            </div>
+
+            <Card>
+              <div className="flex items-center justify-center gap-8">
+                <button
+                  aria-label="Diminuir quantidade"
+                  className="grid h-14 w-14 place-items-center rounded-full border-2 border-green text-green transition disabled:cursor-not-allowed disabled:opacity-30"
+                  disabled={quantity === 1}
+                  onClick={decreaseQuantity}
+                  type="button"
+                >
+                  <Minus className="h-5 w-5" />
+                </button>
+
+                <div className="min-w-24 text-center">
+                  <span className="block font-serif text-7xl font-bold leading-none text-charcoal">
+                    {quantity}
+                  </span>
+                  <span className="mt-1 block text-xs text-warm-gray">
+                    {quantity === 1 ? 'número' : 'números'}
+                  </span>
                 </div>
 
-                <Card>
-                  <div className="flex items-center justify-center gap-8">
-                    <button
-                      aria-label="Diminuir quantidade"
-                      className="grid h-14 w-14 place-items-center rounded-full border-2 border-green text-green transition disabled:cursor-not-allowed disabled:opacity-30"
-                      disabled={quantity === 1}
-                      onClick={decreaseQuantity}
-                      type="button"
-                    >
-                      <Minus className="h-5 w-5" />
-                    </button>
+                <button
+                  aria-label="Aumentar quantidade"
+                  className="grid h-14 w-14 place-items-center rounded-full bg-green text-white shadow-button transition hover:bg-green-deep"
+                  onClick={increaseQuantity}
+                  type="button"
+                >
+                  <Plus className="h-5 w-5" />
+                </button>
+              </div>
+            </Card>
 
-                    <div className="min-w-24 text-center">
-                      <span className="block font-serif text-7xl font-bold leading-none text-charcoal">{quantity}</span>
-                      <span className="mt-1 block text-xs text-warm-gray">{quantity === 1 ? 'número' : 'números'}</span>
-                    </div>
+            <Card className="bg-ivory-deep shadow-none">
+              <dl className="space-y-3">
+                <div className="flex items-center justify-between gap-4">
+                  <dt className="text-sm text-warm-gray">Quantidade</dt>
+                  <dd className="text-sm font-semibold">
+                    {quantity} {quantity === 1 ? 'número' : 'números'}
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <dt className="text-sm text-warm-gray">Valor unitário</dt>
+                  <dd className="text-sm font-semibold">
+                    {quoteQuery.isLoading
+                      ? 'Atualizando...'
+                      : unitPrice
+                        ? formatCurrency(unitPrice)
+                        : '-'}
+                  </dd>
+                </div>
+                <div className="h-px bg-line" />
+                <div className="flex items-center justify-between gap-4">
+                  <dt className="text-base font-bold">Total</dt>
+                  <dd className="font-serif text-3xl font-bold text-green">
+                    {quoteQuery.isLoading ? '...' : totalAmount ? formatCurrency(totalAmount) : '-'}
+                  </dd>
+                </div>
+              </dl>
+            </Card>
 
-                    <button
-                      aria-label="Aumentar quantidade"
-                      className="grid h-14 w-14 place-items-center rounded-full bg-green text-white shadow-button transition hover:bg-green-deep"
-                      onClick={increaseQuantity}
-                      type="button"
-                    >
-                      <Plus className="h-5 w-5" />
-                    </button>
-                  </div>
-                </Card>
+            {quoteQuery.isError ? (
+              <p
+                className="rounded-lg border border-wine/30 bg-white px-4 py-3 text-sm text-wine"
+                role="alert"
+              >
+                {publicMessages.quoteError}
+              </p>
+            ) : null}
 
-                <Card className="bg-ivory-deep shadow-none">
-                  <dl className="space-y-3">
-                    <div className="flex items-center justify-between gap-4">
-                      <dt className="text-sm text-warm-gray">Quantidade</dt>
-                      <dd className="text-sm font-semibold">
-                        {quantity} {quantity === 1 ? 'número' : 'números'}
-                      </dd>
-                    </div>
-                    <div className="flex items-center justify-between gap-4">
-                      <dt className="text-sm text-warm-gray">Valor unitário</dt>
-                      <dd className="text-sm font-semibold">
-                        {quoteQuery.isLoading ? 'Atualizando...' : unitPrice ? formatCurrency(unitPrice) : '-'}
-                      </dd>
-                    </div>
-                    <div className="h-px bg-line" />
-                    <div className="flex items-center justify-between gap-4">
-                      <dt className="text-base font-bold">Total</dt>
-                      <dd className="font-serif text-3xl font-bold text-green">
-                        {quoteQuery.isLoading ? '...' : totalAmount ? formatCurrency(totalAmount) : '-'}
-                      </dd>
-                    </div>
-                  </dl>
-                </Card>
+            {createTransactionMutation.isError ? (
+              <p
+                className="rounded-lg border border-wine/30 bg-white px-4 py-3 text-sm text-wine"
+                role="alert"
+              >
+                {publicMessages.checkoutError}
+              </p>
+            ) : null}
 
-                {quoteQuery.isError ? (
-                  <p className="rounded-lg border border-wine/30 bg-white px-4 py-3 text-sm text-wine" role="alert">
-                    {publicMessages.quoteError}
-                  </p>
-                ) : null}
+            <Button
+              disabled={!quoteQuery.data || quoteQuery.isFetching}
+              isLoading={createTransactionMutation.isPending}
+              onClick={handlePay}
+              type="button"
+            >
+              <CreditCard aria-hidden="true" className="h-5 w-5" />
+              Pagar com Mercado Pago
+            </Button>
 
-                {createTransactionMutation.isError ? (
-                  <p className="rounded-lg border border-wine/30 bg-white px-4 py-3 text-sm text-wine" role="alert">
-                    {publicMessages.checkoutError}
-                  </p>
-                ) : null}
-
-                <Button disabled={!quoteQuery.data || quoteQuery.isFetching} isLoading={createTransactionMutation.isPending} onClick={handlePay} type="button">
-                  <CreditCard aria-hidden="true" className="h-5 w-5" />
-                  Pagar com Mercado Pago
-                </Button>
-
-                <p className="px-2 text-center text-xs leading-relaxed text-warm-gray">
-                  Você será redirecionado ao Mercado Pago para concluir o pagamento com segurança.
-                </p>
-              </section>
+            <p className="px-2 text-center text-xs leading-relaxed text-warm-gray">
+              Você será redirecionado ao Mercado Pago para concluir o pagamento com segurança.
+            </p>
+          </section>
         )}
-        <RaffleResultPanel isDrawClosed={isDrawClosed} result={homeSummaryQuery.data?.raffleResult ?? null} />
-        <FlagRankingPanel isLoading={homeSummaryQuery.isLoading} ranking={homeSummaryQuery.data?.flagRanking ?? []} />
+        <RaffleResultPanel
+          isDrawClosed={isDrawClosed}
+          result={homeSummaryQuery.data?.raffleResult ?? null}
+        />
+        <FlagRankingPanel
+          isLoading={homeSummaryQuery.isLoading}
+          ranking={homeSummaryQuery.data?.flagRanking ?? []}
+        />
       </div>
     </main>
   );
 }
 
-export function RaffleResultPanel({ isDrawClosed, result }: { isDrawClosed: boolean; result: RaffleResult | null }) {
+interface PurchaseSubmission {
+  idempotencyKey: string;
+  request: BuyerFormData & { quantity: number };
+}
+
+export function RaffleResultPanel({
+  isDrawClosed,
+  result,
+}: {
+  isDrawClosed: boolean;
+  result: RaffleResult | null;
+}) {
   if (!isDrawClosed || !result) return null;
 
   return (
     <aside>
       <Card className="border border-gold/40 bg-green-deep text-center text-white shadow-none">
         <p className="text-xs font-bold uppercase tracking-wide text-gold">Número ganhador</p>
-        <p className="mt-3 font-serif text-6xl font-bold leading-none text-gold">{result.winningNumber}</p>
+        <p className="mt-3 font-serif text-6xl font-bold leading-none text-gold">
+          {result.winningNumber}
+        </p>
         <p className="mt-4 font-serif text-2xl font-bold text-green">{result.winnerName}</p>
         {result.participantFlagEmoji && result.participantFlagName ? (
           <div className="mt-4 inline-flex items-center gap-3 rounded-lg bg-ivory px-4 py-3 shadow-sm">

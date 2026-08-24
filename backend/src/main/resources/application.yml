@@ -18,12 +18,17 @@ spring:
       admin_username: ${SPRING_FLYWAY_PLACEHOLDERS_ADMIN_USERNAME}
       admin_password_hash: ${SPRING_FLYWAY_PLACEHOLDERS_ADMIN_PASSWORD_HASH}
       raffle_unit_price: ${RAFFLE_UNIT_PRICE}
+      raffle_number_min: ${RAFFLE_NUMBER_MIN}
+      raffle_number_max: ${RAFFLE_NUMBER_MAX}
 
 server:
   port: ${SERVER_PORT:8080}
 
 app:
   frontend-origin: ${FRONTEND_ORIGIN}
+  lucky-number-allocation:
+    chunk-size: ${LUCKY_NUMBER_ALLOCATION_CHUNK_SIZE:1000}
+    max-conflict-retries: ${LUCKY_NUMBER_ALLOCATION_MAX_CONFLICT_RETRIES:8}
   jwt:
     secret: ${JWT_SECRET}
     expiration-seconds: ${JWT_EXPIRATION_SECONDS}
@@ -39,7 +44,22 @@ app:
     success-url: ${MERCADO_PAGO_SUCCESS_URL}
     failure-url: ${MERCADO_PAGO_FAILURE_URL}
     pending-url: ${MERCADO_PAGO_PENDING_URL}
+    http:
+      connect-timeout-millis: ${MERCADO_PAGO_CONNECT_TIMEOUT_MILLIS:2000}
+      read-timeout-millis: ${MERCADO_PAGO_READ_TIMEOUT_MILLIS:5000}
+      call-timeout-millis: ${MERCADO_PAGO_CALL_TIMEOUT_MILLIS:18000}
+      connection-request-timeout-millis: ${MERCADO_PAGO_CONNECTION_REQUEST_TIMEOUT_MILLIS:500}
+      max-connections: ${MERCADO_PAGO_MAX_CONNECTIONS:10}
     retry:
       max-attempts: ${MERCADO_PAGO_RETRY_MAX_ATTEMPTS:3}
-      delay-millis: ${MERCADO_PAGO_RETRY_DELAY_MILLIS:500}
+      delay-millis: ${MERCADO_PAGO_RETRY_DELAY_MILLIS:250}
       multiplier: ${MERCADO_PAGO_RETRY_MULTIPLIER:2}
+      max-delay-millis: ${MERCADO_PAGO_RETRY_MAX_DELAY_MILLIS:2000}
+      jitter-factor: ${MERCADO_PAGO_RETRY_JITTER_FACTOR:0.5}
+      max-retry-after-millis: ${MERCADO_PAGO_MAX_RETRY_AFTER_MILLIS:5000}
+    circuit-breaker:
+      failure-threshold: ${MERCADO_PAGO_CIRCUIT_FAILURE_THRESHOLD:5}
+      open-duration-millis: ${MERCADO_PAGO_CIRCUIT_OPEN_DURATION_MILLIS:30000}
+    bulkhead:
+      max-concurrent-calls: ${MERCADO_PAGO_BULKHEAD_MAX_CONCURRENT_CALLS:10}
+      max-wait-millis: ${MERCADO_PAGO_BULKHEAD_MAX_WAIT_MILLIS:250}

@@ -50,6 +50,10 @@ public class Transaction {
     @Column(nullable = false, columnDefinition = "payment_method")
     private PaymentMethod paymentMethod = PaymentMethod.MERCADO_PAGO;
 
+    @Enumerated(EnumType.STRING)
+    @Column(length = 40)
+    private CapacityReviewStatus capacityReviewStatus;
+
     @Column(nullable = false, unique = true)
     private String externalReference;
 
@@ -59,6 +63,19 @@ public class Transaction {
     private String mpPaymentId;
 
     private String mpPreferenceId;
+
+    private String mpCollectorId;
+
+    @Column(length = 2048)
+    private String mpCheckoutUrl;
+
+    private OffsetDateTime paymentStateUpdatedAt;
+
+    private Short paymentStatePriority;
+
+    private Long currentPaymentEventId;
+
+    private OffsetDateTime luckyNumbersGeneratedAt;
 
     @Column(nullable = false, length = 50)
     private String participantFlagCode;
@@ -169,6 +186,10 @@ public class Transaction {
         return paymentMethod;
     }
 
+    public CapacityReviewStatus getCapacityReviewStatus() {
+        return capacityReviewStatus;
+    }
+
     public String getExternalReference() {
         return externalReference;
     }
@@ -183,6 +204,30 @@ public class Transaction {
 
     public String getMpPreferenceId() {
         return mpPreferenceId;
+    }
+
+    public String getMpCollectorId() {
+        return mpCollectorId;
+    }
+
+    public String getMpCheckoutUrl() {
+        return mpCheckoutUrl;
+    }
+
+    public OffsetDateTime getPaymentStateUpdatedAt() {
+        return paymentStateUpdatedAt;
+    }
+
+    public Short getPaymentStatePriority() {
+        return paymentStatePriority;
+    }
+
+    public Long getCurrentPaymentEventId() {
+        return currentPaymentEventId;
+    }
+
+    public OffsetDateTime getLuckyNumbersGeneratedAt() {
+        return luckyNumbersGeneratedAt;
     }
 
     public String getParticipantFlagCode() {
@@ -205,13 +250,33 @@ public class Transaction {
         return updatedAt;
     }
 
-    public void markPayment(PaymentStatus status, String mpPaymentId) {
+    public void markPaymentState(
+            PaymentStatus status,
+            String mpPaymentId,
+            OffsetDateTime paymentStateUpdatedAt,
+            short paymentStatePriority,
+            Long currentPaymentEventId) {
         this.status = status;
         this.mpPaymentId = mpPaymentId;
+        this.paymentStateUpdatedAt = paymentStateUpdatedAt;
+        this.paymentStatePriority = paymentStatePriority;
+        this.currentPaymentEventId = currentPaymentEventId;
     }
 
-    public void assignPreference(String mpPreferenceId) {
+    public void assignPreference(String mpPreferenceId, String mpCheckoutUrl, String mpCollectorId) {
         this.mpPreferenceId = mpPreferenceId;
+        this.mpCheckoutUrl = mpCheckoutUrl;
+        this.mpCollectorId = mpCollectorId;
+    }
+
+    public boolean hasCompletedLuckyNumberBatch() {
+        return luckyNumbersGeneratedAt != null;
+    }
+
+    public void markLuckyNumberBatchCompleted(OffsetDateTime completedAt) {
+        if (luckyNumbersGeneratedAt == null) {
+            luckyNumbersGeneratedAt = completedAt;
+        }
     }
 
     public void assignRecoveryCode(String recoveryCode) {
@@ -222,6 +287,19 @@ public class Transaction {
         this.participantFlagCode = participantFlag.code();
         this.participantFlagName = participantFlag.name();
         this.participantFlagEmoji = participantFlag.emoji();
+    }
+
+    public void markCapacityReviewPending() {
+        capacityReviewStatus = CapacityReviewStatus.PENDING;
+    }
+
+    public void completeCapacityReview(CapacityReviewStatus resolution) {
+        if (capacityReviewStatus != CapacityReviewStatus.PENDING
+                || resolution == null
+                || resolution == CapacityReviewStatus.PENDING) {
+            throw new IllegalStateException("Invalid capacity review transition.");
+        }
+        capacityReviewStatus = resolution;
     }
 
     private static BigDecimal inferUnitPrice(BigDecimal totalAmount, Integer quantity) {

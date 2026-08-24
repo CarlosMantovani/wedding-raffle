@@ -11,9 +11,12 @@ import { TextInput } from '../../components/ui/TextInput';
 import { adminTransactionService } from '../../services/adminTransactionService';
 import { transactionService } from '../../services/transactionService';
 import { formatCurrency } from '../../utils/formatters';
+import { clearIdempotencyKey, getOrCreateIdempotencyKey } from '../../utils/idempotency';
 import { formatPhoneNumber, normalizePhoneNumber } from '../../utils/phone';
 import { RecoveryCodeContent } from '../payment-return/PaymentReturnPage';
 import { cashPaymentSchema, type CashPaymentFormData } from './schemas';
+
+const CASH_IDEMPOTENCY_ACTION = 'cash-registration';
 
 export function AdminCashPaymentPage() {
   const [isCurrentLuckyNumberListExpanded, setIsCurrentLuckyNumberListExpanded] = useState(false);
@@ -30,20 +33,30 @@ export function AdminCashPaymentPage() {
   });
 
   const createCashMutation = useMutation({
-    mutationFn: (data: CashPaymentFormData) =>
-      adminTransactionService.createCashTransaction({
-        name: data.name.trim(),
-        phone: normalizePhoneNumber(data.phone),
-        quantity: data.quantity,
-      }),
-    onSuccess: () => {
+    mutationFn: ({ idempotencyKey, request }: CashPurchaseSubmission) =>
+      adminTransactionService.createCashTransaction(request, idempotencyKey),
+    onSuccess: (_response, submission) => {
+      clearIdempotencyKey(CASH_IDEMPOTENCY_ACTION, submission.idempotencyKey);
       setIsCurrentLuckyNumberListExpanded(false);
       setIsPreviousLuckyNumberListExpanded(false);
     },
   });
+
+  const submitCashPayment = (data: CashPaymentFormData) => {
+    const request = {
+      name: data.name.trim(),
+      phone: normalizePhoneNumber(data.phone),
+      quantity: data.quantity,
+    };
+    createCashMutation.mutate({
+      idempotencyKey: getOrCreateIdempotencyKey(CASH_IDEMPOTENCY_ACTION, request),
+      request,
+    });
+  };
   const createdLuckyNumbers = createCashMutation.data?.luckyNumbers ?? [];
   const previousLuckyNumbers = createCashMutation.data?.previousLuckyNumbers ?? [];
-  const totalLuckyNumbers = createCashMutation.data?.totalLuckyNumbers ?? createdLuckyNumbers.length;
+  const totalLuckyNumbers =
+    createCashMutation.data?.totalLuckyNumbers ?? createdLuckyNumbers.length;
 
   return (
     <main className="min-h-screen bg-cream text-charcoal">
@@ -55,7 +68,10 @@ export function AdminCashPaymentPage() {
             </p>
             <p className="mt-1 text-xs text-white/55">Pagamento em dinheiro</p>
           </div>
-          <a className="inline-flex items-center gap-2 text-sm font-semibold text-white/70 hover:text-white" href="/admin">
+          <a
+            className="inline-flex items-center gap-2 text-sm font-semibold text-white/70 hover:text-white"
+            href="/admin"
+          >
             <ArrowLeft aria-hidden="true" className="h-4 w-4" />
             Voltar
           </a>
@@ -64,13 +80,21 @@ export function AdminCashPaymentPage() {
 
       <section className="mx-auto grid max-w-4xl gap-6 px-6 py-8 md:grid-cols-[1fr_0.9fr]">
         <Card>
-          <form className="space-y-5" onSubmit={handleSubmit((data) => createCashMutation.mutate(data))}>
+          <form className="space-y-5" onSubmit={handleSubmit(submitCashPayment)}>
             <div>
               <h1 className="font-serif text-2xl font-bold">Registrar pagamento</h1>
-              <p className="mt-1 text-sm text-warm-gray">Os números são gerados imediatamente após confirmar.</p>
+              <p className="mt-1 text-sm text-warm-gray">
+                Os números são gerados imediatamente após confirmar.
+              </p>
             </div>
 
-            <TextInput id="cash-name" label="Nome" placeholder="Nome do convidado" error={errors.name?.message} {...register('name')} />
+            <TextInput
+              id="cash-name"
+              label="Nome"
+              placeholder="Nome do convidado"
+              error={errors.name?.message}
+              {...register('name')}
+            />
 
             <Controller
               control={control}
@@ -100,7 +124,10 @@ export function AdminCashPaymentPage() {
             />
 
             {createCashMutation.isError ? (
-              <p className="rounded-lg border border-terracotta/30 bg-blush px-4 py-3 text-sm text-terracotta-dark" role="alert">
+              <p
+                className="rounded-lg border border-terracotta/30 bg-blush px-4 py-3 text-sm text-terracotta-dark"
+                role="alert"
+              >
                 Não foi possível registrar o pagamento.
               </p>
             ) : null}
@@ -116,15 +143,27 @@ export function AdminCashPaymentPage() {
           {createCashMutation.data ? (
             <div className="space-y-5">
               <div>
-                <p className="text-xs font-bold uppercase tracking-wide text-warm-gray">Pagamento aprovado</p>
-                <h2 className="mt-2 font-serif text-2xl font-bold">{createCashMutation.data.name}</h2>
-                <p className="mt-1 text-sm text-warm-gray">{formatCurrency(createCashMutation.data.totalAmount)}</p>
-                {createCashMutation.data.participantFlagEmoji && createCashMutation.data.participantFlagName ? (
+                <p className="text-xs font-bold uppercase tracking-wide text-warm-gray">
+                  Pagamento aprovado
+                </p>
+                <h2 className="mt-2 font-serif text-2xl font-bold">
+                  {createCashMutation.data.name}
+                </h2>
+                <p className="mt-1 text-sm text-warm-gray">
+                  {formatCurrency(createCashMutation.data.totalAmount)}
+                </p>
+                {createCashMutation.data.participantFlagEmoji &&
+                createCashMutation.data.participantFlagName ? (
                   <div className="mt-4 rounded-lg border border-[#EEE6DF] bg-white/60 px-4 py-3">
-                    <p className="text-xs font-bold uppercase tracking-wide text-terracotta">Bandeira do participante</p>
+                    <p className="text-xs font-bold uppercase tracking-wide text-terracotta">
+                      Bandeira do participante
+                    </p>
                     <div className="mt-3 flex items-center gap-3">
                       <span className="grid h-12 w-12 place-items-center rounded-full bg-blush">
-                        <FlagEmoji className="h-8 w-8" emoji={createCashMutation.data.participantFlagEmoji} />
+                        <FlagEmoji
+                          className="h-8 w-8"
+                          emoji={createCashMutation.data.participantFlagEmoji}
+                        />
                       </span>
                       <span className="font-serif text-xl font-bold text-charcoal">
                         {createCashMutation.data.participantFlagName}
@@ -159,7 +198,9 @@ export function AdminCashPaymentPage() {
                 isExpanded={isCurrentLuckyNumberListExpanded}
                 numbers={createdLuckyNumbers}
                 onToggle={() => setIsCurrentLuckyNumberListExpanded((current) => !current)}
-                title={previousLuckyNumbers.length > 0 ? 'Números adquiridos agora' : 'Números gerados'}
+                title={
+                  previousLuckyNumbers.length > 0 ? 'Números adquiridos agora' : 'Números gerados'
+                }
               />
 
               {previousLuckyNumbers.length > 0 ? (
@@ -173,7 +214,9 @@ export function AdminCashPaymentPage() {
 
               <a
                 className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-terracotta px-4 py-2 text-sm font-semibold text-white shadow-button transition hover:bg-terracotta-dark"
-                href={transactionService.getLuckyNumbersPdfUrl(createCashMutation.data.externalReference)}
+                href={transactionService.getLuckyNumbersPdfUrl(
+                  createCashMutation.data.externalReference,
+                )}
               >
                 <Download aria-hidden="true" className="h-4 w-4" />
                 Baixar PDF
@@ -195,6 +238,15 @@ export function AdminCashPaymentPage() {
   );
 }
 
+interface CashPurchaseSubmission {
+  idempotencyKey: string;
+  request: {
+    name: string;
+    phone: string;
+    quantity: number;
+  };
+}
+
 function CashLuckyNumberGroup({
   isExpanded,
   numbers,
@@ -213,7 +265,9 @@ function CashLuckyNumberGroup({
     <section aria-label={title} className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-sm font-bold text-charcoal">{title}</h3>
-        <span className="shrink-0 rounded-full bg-white/70 px-3 py-1 text-xs font-bold text-warm-gray">{numbers.length}</span>
+        <span className="shrink-0 rounded-full bg-white/70 px-3 py-1 text-xs font-bold text-warm-gray">
+          {numbers.length}
+        </span>
       </div>
       <button
         aria-expanded={hasMoreLuckyNumbers ? isExpanded : undefined}

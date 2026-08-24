@@ -2,6 +2,7 @@ package com.weddingraffle.rifa.service;
 
 import com.weddingraffle.rifa.dto.AdminTransactionResponse;
 import com.weddingraffle.rifa.dto.AdminTransactionSummaryResponse;
+import com.weddingraffle.rifa.dto.CapacityReviewDecision;
 import com.weddingraffle.rifa.dto.CashTransactionCreateRequest;
 import com.weddingraffle.rifa.dto.CashTransactionCreateResponse;
 import org.springframework.data.domain.Page;
@@ -13,7 +14,9 @@ public interface AdminTransactionService {
 
     Page<AdminTransactionResponse> list(String query, Pageable pageable);
 
-    CashTransactionCreateResponse createCashTransaction(CashTransactionCreateRequest request);
+    CashTransactionCreateResponse createCashTransaction(String idempotencyKey, CashTransactionCreateRequest request);
 
     void deleteCashTransaction(String externalReference);
+
+    void resolveCapacityReview(String externalReference, CapacityReviewDecision decision);
 }

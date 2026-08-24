@@ -1,6 +1,8 @@
 import type { PaymentStatus } from './transaction';
 
 export type PaymentMethod = 'MERCADO_PAGO' | 'CASH';
+export type CapacityReviewStatus = 'PENDING' | 'REFUND_COMPLETED' | 'CONTRIBUTION_WITHOUT_NUMBERS';
+export type CapacityReviewDecision = Exclude<CapacityReviewStatus, 'PENDING'>;
 
 export interface AdminTransactionResponse {
   externalReference: string;
@@ -9,6 +11,7 @@ export interface AdminTransactionResponse {
   phone: string;
   email: string | null;
   paymentMethod: PaymentMethod;
+  capacityReviewStatus?: CapacityReviewStatus | null;
   quantity: number;
   totalAmount: string;
   status: PaymentStatus;

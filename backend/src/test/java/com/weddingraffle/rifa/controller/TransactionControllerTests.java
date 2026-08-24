@@ -1,6 +1,7 @@
 package com.weddingraffle.rifa.controller;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
@@ -15,6 +16,7 @@ import com.weddingraffle.rifa.dto.PaymentStatusResponse;
 import com.weddingraffle.rifa.dto.TransactionCreateResponse;
 import com.weddingraffle.rifa.dto.TransactionQuoteResponse;
 import com.weddingraffle.rifa.dto.TransactionStatusResponse;
+import com.weddingraffle.rifa.exception.IdempotencyConflictException;
 import com.weddingraffle.rifa.service.LuckyNumberPdfService;
 import com.weddingraffle.rifa.service.TransactionService;
 import java.math.BigDecimal;
@@ -77,7 +79,9 @@ class TransactionControllerTests {
         mockMvc.perform(options("/transactions/quote")
                         .header("Origin", "https://3278-45-225-145-57.ngrok-free.app")
                         .header("Access-Control-Request-Method", "POST")
-                        .header("Access-Control-Request-Headers", "content-type,ngrok-skip-browser-warning"))
+                        .header(
+                                "Access-Control-Request-Headers",
+                                "content-type,idempotency-key,ngrok-skip-browser-warning"))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Access-Control-Allow-Origin", "https://3278-45-225-145-57.ngrok-free.app"))
                 .andExpect(
@@ -86,16 +90,20 @@ class TransactionControllerTests {
                                 "Access-Control-Allow-Headers", org.hamcrest.Matchers.containsString("content-type")))
                 .andExpect(header().string(
                                 "Access-Control-Allow-Headers",
+                                org.hamcrest.Matchers.containsString("idempotency-key")))
+                .andExpect(header().string(
+                                "Access-Control-Allow-Headers",
                                 org.hamcrest.Matchers.containsString("ngrok-skip-browser-warning")));
     }
 
     @Test
     void createReturnsCheckoutWithoutAuthentication() throws Exception {
-        when(transactionService.create(any()))
+        when(transactionService.create(eq("checkout-key-123"), any()))
                 .thenReturn(new TransactionCreateResponse(
                         "external-reference-123", "4821", "preference-123", "https://checkout.example.com"));
 
         mockMvc.perform(post("/transactions")
+                        .header("Idempotency-Key", "checkout-key-123")
                         .contentType("application/json")
                         .content("{\"name\":\"Guest User\",\"phone\":\"(11) 99999-9999\",\"quantity\":2}"))
                 .andExpect(status().isOk())
@@ -103,6 +111,28 @@ class TransactionControllerTests {
                 .andExpect(jsonPath("$.recoveryCode").value("4821"))
                 .andExpect(jsonPath("$.preferenceId").value("preference-123"))
                 .andExpect(jsonPath("$.checkoutUrl").value("https://checkout.example.com"));
+    }
+
+    @Test
+    void createRequiresIdempotencyKey() throws Exception {
+        mockMvc.perform(post("/transactions")
+                        .contentType("application/json")
+                        .content("{\"name\":\"Guest User\",\"phone\":\"(11) 99999-9999\",\"quantity\":2}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void createRejectsSameIdempotencyKeyWithDifferentPayload() throws Exception {
+        when(transactionService.create(eq("checkout-key-123"), any()))
+                .thenThrow(new IdempotencyConflictException(
+                        "The idempotency key was already used with a different purchase request."));
+
+        mockMvc.perform(post("/transactions")
+                        .header("Idempotency-Key", "checkout-key-123")
+                        .contentType("application/json")
+                        .content("{\"name\":\"Guest User\",\"phone\":\"(11) 99999-9999\",\"quantity\":3}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("IDEMPOTENCY_CONFLICT"));
     }
 
     @Test

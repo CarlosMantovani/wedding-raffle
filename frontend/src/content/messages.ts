@@ -10,4 +10,6 @@ export const publicMessages = {
     'Seu pagamento ainda está sendo processado. Seus números serão gerados assim que a confirmação for recebida.',
   rejected: 'Seu pagamento foi recusado. Verifique os dados ou tente outro método de pagamento.',
   cancelled: 'A transação foi cancelada. Nenhum número foi gerado para essa compra.',
+  approvedWithoutNumbers:
+    'Seu pagamento foi aprovado, mas os números não estão disponíveis. Entre em contato com o administrador.',
 };
