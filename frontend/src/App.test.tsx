@@ -1146,7 +1146,9 @@ describe('App', () => {
     expect(screen.getByText('12', { selector: 'dd' })).toBeInTheDocument();
     expect(screen.getByText('Bandeira do participante')).toBeInTheDocument();
     expect(screen.getByText('Brasil')).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: '🇧🇷' })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole('img', { name: '🇧🇷' }).tagName).toBe('IMG');
+    });
     expect(await screen.findByText('00008')).toBeInTheDocument();
     expect(screen.queryByText('00009')).not.toBeInTheDocument();
     expect(screen.getByText('00090')).toBeInTheDocument();

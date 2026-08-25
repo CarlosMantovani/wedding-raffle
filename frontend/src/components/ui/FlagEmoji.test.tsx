@@ -1,6 +1,6 @@
 /// <reference types="node" />
 
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -19,17 +19,57 @@ const participantFlags = readFileSync(
   });
 
 describe('FlagEmoji', () => {
-  it.each(participantFlags)('renders $code ($name) as a bundled SVG image', ({ symbol }) => {
+  it('keeps the expanded catalog unchanged', () => {
+    expect(participantFlags).toHaveLength(222);
+  });
+
+  it.each(participantFlags)('loads $code ($name) as an SVG image on demand', async ({ symbol }) => {
     render(<FlagEmoji emoji={symbol} />);
 
-    const flag = screen.getByRole('img', { name: symbol });
+    const flag = await waitForFlagImage(symbol);
 
-    expect(flag.tagName).toBe('IMG');
     expect(flag).toHaveAttribute('src');
     expect(flag).toHaveClass('object-contain');
   });
 
-  it('keeps the text fallback for an unknown visual identity', () => {
+  it('loads different country and state identities independently', async () => {
+    render(
+      <>
+        <FlagEmoji emoji="🇧🇷" />
+        <FlagEmoji emoji="🇨🇦" />
+        <FlagEmoji emoji="BR-SP" />
+      </>,
+    );
+
+    const flags = await Promise.all([
+      waitForFlagImage('🇧🇷'),
+      waitForFlagImage('🇨🇦'),
+      waitForFlagImage('BR-SP'),
+    ]);
+
+    expect(new Set(flags.map((flag) => flag.getAttribute('src'))).size).toBe(3);
+  });
+
+  it('reuses the same asset URL for repeated identities', async () => {
+    render(
+      <>
+        <FlagEmoji emoji="🇧🇷" />
+        <FlagEmoji emoji="🇧🇷" />
+      </>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('img', { name: '🇧🇷' })).toHaveLength(2);
+      expect(
+        screen.getAllByRole('img', { name: '🇧🇷' }).every((flag) => flag.tagName === 'IMG'),
+      ).toBe(true);
+    });
+
+    const [firstFlag, secondFlag] = screen.getAllByRole('img', { name: '🇧🇷' });
+    expect(firstFlag).toHaveAttribute('src', secondFlag.getAttribute('src'));
+  });
+
+  it('keeps the text fallback for an unknown identity code', () => {
     render(<FlagEmoji emoji="UNKNOWN-FLAG" />);
 
     const fallback = screen.getByRole('img', { name: 'UNKNOWN-FLAG' });
@@ -37,4 +77,22 @@ describe('FlagEmoji', () => {
     expect(fallback.tagName).toBe('SPAN');
     expect(fallback).toHaveTextContent('UNKNOWN-FLAG');
   });
+
+  it('falls back after an asset fails to render without retrying', async () => {
+    render(<FlagEmoji emoji="BR-SP" />);
+
+    fireEvent.error(await waitForFlagImage('BR-SP'));
+
+    const fallback = screen.getByRole('img', { name: 'BR-SP' });
+    expect(fallback.tagName).toBe('SPAN');
+    expect(fallback).toHaveTextContent('BR-SP');
+  });
 });
+
+async function waitForFlagImage(symbol: string) {
+  return waitFor(() => {
+    const flag = screen.getByRole('img', { name: symbol });
+    expect(flag.tagName).toBe('IMG');
+    return flag;
+  });
+}

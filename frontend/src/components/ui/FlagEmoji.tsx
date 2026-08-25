@@ -1,4 +1,7 @@
 import twemoji from 'twemoji';
+import { useEffect, useState } from 'react';
+
+type FlagAssetLoader = () => Promise<string>;
 
 const flagAssetModules = import.meta.glob<string>(
   [
@@ -198,28 +201,31 @@ const flagAssetModules = import.meta.glob<string>(
     '/node_modules/@twemoji/svg/1f1ff-1f1f2.svg',
     '/node_modules/@twemoji/svg/1f1ff-1f1fc.svg',
   ],
-  { eager: true, import: 'default', query: '?url' },
+  { import: 'default', query: '?url' },
 );
 
-const flagAssets = Object.fromEntries(
-  Object.entries(flagAssetModules).map(([path, assetUrl]) => [
+const flagAssetLoaders = Object.fromEntries(
+  Object.entries(flagAssetModules).map(([path, loadAsset]) => [
     path.slice(path.lastIndexOf('/') + 1, -'.svg'.length),
-    assetUrl,
+    loadAsset,
   ]),
-) as Record<string, string>;
+) as Record<string, FlagAssetLoader>;
 
 const stateFlagAssetModules = import.meta.glob<string>('/src/assets/flags/br-states/br-*.svg', {
-  eager: true,
   import: 'default',
   query: '?url',
 });
 
-const stateFlagAssets = Object.fromEntries(
-  Object.entries(stateFlagAssetModules).map(([path, assetUrl]) => [
+const stateFlagAssetLoaders = Object.fromEntries(
+  Object.entries(stateFlagAssetModules).map(([path, loadAsset]) => [
     path.slice(path.lastIndexOf('/') + 1, -'.svg'.length).toUpperCase(),
-    assetUrl,
+    loadAsset,
   ]),
-) as Record<string, string>;
+) as Record<string, FlagAssetLoader>;
+
+const loadedAssetUrls = new Map<FlagAssetLoader, string>();
+const pendingAssetLoads = new Map<FlagAssetLoader, Promise<string | null>>();
+const failedAssetUrls = new Set<string>();
 
 interface FlagEmojiProps {
   className?: string;
@@ -228,7 +234,33 @@ interface FlagEmojiProps {
 
 export function FlagEmoji({ className = '', emoji }: FlagEmojiProps) {
   const codePoint = twemoji.convert.toCodePoint(emoji).toLowerCase();
-  const assetUrl = stateFlagAssets[emoji.toUpperCase()] ?? flagAssets[codePoint];
+  const loader = stateFlagAssetLoaders[emoji.toUpperCase()] ?? flagAssetLoaders[codePoint] ?? null;
+  const cachedAssetUrl = loader ? loadedAssetUrls.get(loader) : undefined;
+  const availableCachedAssetUrl =
+    cachedAssetUrl && !failedAssetUrls.has(cachedAssetUrl) ? cachedAssetUrl : null;
+  const [assetState, setAssetState] = useState<FlagAssetState>(() => ({
+    assetUrl: availableCachedAssetUrl,
+    loader,
+  }));
+  const assetUrl = assetState.loader === loader ? assetState.assetUrl : availableCachedAssetUrl;
+
+  useEffect(() => {
+    if (!loader) return undefined;
+
+    const cachedUrl = loadedAssetUrls.get(loader);
+    if (cachedUrl) return undefined;
+
+    let isActive = true;
+    void loadFlagAsset(loader).then((loadedUrl) => {
+      if (isActive && loadedUrl && !failedAssetUrls.has(loadedUrl)) {
+        setAssetState({ assetUrl: loadedUrl, loader });
+      }
+    });
+
+    return () => {
+      isActive = false;
+    };
+  }, [loader]);
 
   if (!assetUrl) {
     return (
@@ -239,6 +271,39 @@ export function FlagEmoji({ className = '', emoji }: FlagEmojiProps) {
   }
 
   return (
-    <img alt={emoji} className={`object-contain ${className}`} draggable={false} src={assetUrl} />
+    <img
+      alt={emoji}
+      className={`object-contain ${className}`}
+      decoding="async"
+      draggable={false}
+      loading="lazy"
+      onError={() => {
+        failedAssetUrls.add(assetUrl);
+        setAssetState({ assetUrl: null, loader });
+      }}
+      src={assetUrl}
+    />
   );
+}
+
+interface FlagAssetState {
+  assetUrl: string | null;
+  loader: FlagAssetLoader | null;
+}
+
+function loadFlagAsset(loader: FlagAssetLoader) {
+  const cachedUrl = loadedAssetUrls.get(loader);
+  if (cachedUrl) return Promise.resolve(cachedUrl);
+
+  const pendingLoad = pendingAssetLoads.get(loader);
+  if (pendingLoad) return pendingLoad;
+
+  const load = loader()
+    .then((assetUrl) => {
+      loadedAssetUrls.set(loader, assetUrl);
+      return assetUrl;
+    })
+    .catch(() => null);
+  pendingAssetLoads.set(loader, load);
+  return load;
 }
