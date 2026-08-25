@@ -41,7 +41,7 @@ export function FlagRankingPanel({ isLoading, ranking }: FlagRankingPanelProps) 
             className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg border border-green bg-transparent px-5 py-3 text-sm font-semibold text-green transition hover:bg-ivory-deep focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green"
             href="/flag-ranking"
           >
-            Ver top 30
+            Ver top 15
             <ChevronRight aria-hidden="true" className="h-4 w-4" />
           </a>
         </div>
