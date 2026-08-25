@@ -214,36 +214,36 @@ describe('App', () => {
     expect(screen.getByText('A líder também ganhará um prêmio especial.')).toBeInTheDocument();
     expect(await screen.findAllByText('Brasil')).toHaveLength(2);
     expect(screen.getAllByRole('progressbar', { name: 'Progresso relativo de Brasil' })).toHaveLength(2);
-    expect(screen.getByRole('link', { name: 'Ver top 30' })).toHaveAttribute('href', '/flag-ranking');
+    expect(screen.getByRole('link', { name: 'Ver top 15' })).toHaveAttribute('href', '/flag-ranking');
   });
 
-  it('renders the top thirty flag ranking page', async () => {
+  it('renders the top fifteen flag ranking page', async () => {
     mockedHomeService.getSummary.mockResolvedValue({
       scheduledDrawAt: '2026-09-06T02:00:00Z',
       raffleResult: null,
       flagRanking: [],
     });
     mockedHomeService.getFlagRanking.mockResolvedValue(
-      Array.from({ length: 30 }, (_, index) => ({
+      Array.from({ length: 15 }, (_, index) => ({
         code: `FLAG_${index + 1}`,
         emoji: '🇧🇷',
         name: `Bandeira ${index + 1}`,
         position: index + 1,
-        progressPercent: Number((((30 - index) * 100) / 30).toFixed(2)),
+        progressPercent: Number((((15 - index) * 100) / 15).toFixed(2)),
       })),
     );
 
     renderApp('/flag-ranking');
 
-    expect(await screen.findByText('Top 30 bandeiras')).toBeInTheDocument();
+    expect(await screen.findByText('Top 15 bandeiras')).toBeInTheDocument();
     expect(await screen.findByText('Contagem para o sorteio')).toBeInTheDocument();
     expect(screen.getByText('Atualiza a cada 5 minutos')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Voltar' })).toHaveAttribute('href', '/');
-    expect((await screen.findAllByText('Bandeira 30')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('Bandeira 15')).length).toBeGreaterThan(0);
     expect(mockedHomeService.getFlagRanking).toHaveBeenCalledTimes(1);
   });
 
-  it('refreshes the top thirty flag ranking every five minutes', async () => {
+  it('refreshes the top fifteen flag ranking every five minutes', async () => {
     vi.useFakeTimers();
     mockedHomeService.getFlagRanking.mockResolvedValue([
       {

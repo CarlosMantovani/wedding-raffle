@@ -15,7 +15,7 @@ export function FlagRankingPage() {
     queryFn: homeService.getSummary,
   });
   const flagRankingQuery = useQuery({
-    queryKey: ['flag-ranking', 'top-30'],
+    queryKey: ['flag-ranking', 'top-15'],
     queryFn: homeService.getFlagRanking,
     refetchInterval: FLAG_RANKING_REFRESH_INTERVAL_MS,
   });
@@ -51,7 +51,7 @@ export function FlagRankingPage() {
                   <Trophy aria-hidden="true" className="h-4 w-4" />
                   Disputa das bandeiras
                 </p>
-                <h1 className="mt-2 font-serif text-3xl font-bold text-charcoal">Top 30 bandeiras</h1>
+                <h1 className="mt-2 font-serif text-3xl font-bold text-charcoal">Top 15 bandeiras</h1>
               </div>
 
               <p className="inline-flex items-center gap-2 rounded-lg bg-ivory-deep px-3 py-2 text-xs font-semibold text-warm-gray">

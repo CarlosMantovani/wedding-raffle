@@ -24,7 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class PublicHomeServiceImpl implements PublicHomeService {
 
     private static final int SUMMARY_FLAG_RANKING_SIZE = 5;
-    private static final int FULL_FLAG_RANKING_SIZE = 30;
+    private static final int FULL_FLAG_RANKING_SIZE = 15;
 
     private final RaffleConfigRepository raffleConfigRepository;
     private final RaffleDrawRepository raffleDrawRepository;
