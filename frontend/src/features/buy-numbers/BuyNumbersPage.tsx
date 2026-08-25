@@ -19,6 +19,7 @@ import { isPastDateTime } from '../../utils/dateTime';
 import { formatCurrency } from '../../utils/formatters';
 import { clearIdempotencyKey, getOrCreateIdempotencyKey } from '../../utils/idempotency';
 import { formatPhoneNumber, normalizePhoneNumber } from '../../utils/phone';
+import { FlagRankingPanel } from '../flag-ranking/FlagRankingPanel';
 import { CountdownPanel } from './CountdownPanel';
 import { buyerSchema, type BuyerFormData } from './schemas';
 
@@ -395,6 +396,10 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
         <RaffleResultPanel
           isDrawClosed={isDrawClosed}
           result={homeSummaryQuery.data?.raffleResult ?? null}
+        />
+        <FlagRankingPanel
+          isLoading={homeSummaryQuery.isLoading}
+          ranking={homeSummaryQuery.data?.flagRanking ?? []}
         />
       </div>
     </main>
