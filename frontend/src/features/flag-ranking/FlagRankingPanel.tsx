@@ -26,7 +26,7 @@ export function FlagRankingPanel({ isLoading, ranking }: FlagRankingPanelProps) 
               />
               <FlagRule
                 icon={<Clock aria-hidden="true" className="h-4 w-4" />}
-                text="Em empate, a compra mais recente fica na frente."
+                text="Em caso de empate de bandeiras, a compra mais recente fica na frente"
               />
               <FlagRule
                 icon={<Trophy aria-hidden="true" className="h-4 w-4" />}

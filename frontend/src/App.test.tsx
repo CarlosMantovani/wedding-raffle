@@ -208,7 +208,9 @@ describe('App', () => {
     expect(await screen.findByText('Ranking de bandeiras')).toBeInTheDocument();
     expect(screen.getByText('Uma bandeira exclusiva por telefone.')).toBeInTheDocument();
     expect(screen.getByText('Novas compras somam pontos na mesma bandeira.')).toBeInTheDocument();
-    expect(screen.getByText('Em empate, a compra mais recente fica na frente.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Em caso de empate de bandeiras, a compra mais recente fica na frente'),
+    ).toBeInTheDocument();
     expect(screen.getByText('A líder também ganhará um prêmio especial.')).toBeInTheDocument();
     expect(await screen.findAllByText('Brasil')).toHaveLength(2);
     expect(screen.getAllByRole('progressbar', { name: 'Progresso relativo de Brasil' })).toHaveLength(2);
