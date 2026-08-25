@@ -7,6 +7,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
@@ -27,7 +28,7 @@ public class RandomParticipantFlagService implements ParticipantFlagService {
     @Override
     public ParticipantFlag resolveForPhone(String phone) {
         return transactionRepository
-                .findFirstByPhoneOrderByCreatedAtAsc(phone)
+                .findFirstByPhoneAndParticipantFlagCodeIsNotNullOrderByCreatedAtAsc(phone)
                 .map(transaction -> new ParticipantFlag(
                         transaction.getParticipantFlagCode(),
                         transaction.getParticipantFlagName(),
@@ -64,6 +65,7 @@ public class RandomParticipantFlagService implements ParticipantFlagService {
                     throw new IllegalStateException("Participant flags resource is empty.");
                 }
 
+                validateFlags(flags);
                 return flags;
             }
         } catch (IOException exception) {
@@ -73,9 +75,22 @@ public class RandomParticipantFlagService implements ParticipantFlagService {
 
     private static ParticipantFlag toParticipantFlag(String line) {
         String[] parts = line.split(";", -1);
-        if (parts.length != 3) {
+        if (parts.length != 3 || parts[0].isBlank() || parts[1].isBlank() || parts[2].isBlank()) {
             throw new IllegalStateException("Invalid participant flag line: " + line);
         }
-        return new ParticipantFlag(parts[0], parts[1], parts[2]);
+        String code = parts[0].trim();
+        if (!code.matches("[A-Z0-9_]+")) {
+            throw new IllegalStateException("Invalid participant flag code: " + code);
+        }
+        return new ParticipantFlag(code, parts[1].trim(), parts[2].trim());
+    }
+
+    private static void validateFlags(List<ParticipantFlag> flags) {
+        Set<String> uniqueCodes = new HashSet<>();
+        for (ParticipantFlag flag : flags) {
+            if (!uniqueCodes.add(flag.code())) {
+                throw new IllegalStateException("Duplicate participant flag code: " + flag.code());
+            }
+        }
     }
 }

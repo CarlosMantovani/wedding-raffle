@@ -15,6 +15,7 @@ import com.weddingraffle.rifa.repository.TransactionRepository;
 import com.weddingraffle.rifa.service.CapacityAllocationResult;
 import com.weddingraffle.rifa.service.CapacityReservationService;
 import com.weddingraffle.rifa.service.LuckyNumberService;
+import com.weddingraffle.rifa.service.ParticipantFlagService;
 import com.weddingraffle.rifa.service.PaymentReconciliationService;
 import java.time.Clock;
 import java.time.OffsetDateTime;
@@ -40,6 +41,7 @@ public class PaymentReconciliationServiceImpl implements PaymentReconciliationSe
     private final PaymentEventRepository paymentEventRepository;
     private final CapacityReservationService capacityReservationService;
     private final LuckyNumberService luckyNumberService;
+    private final ParticipantFlagService participantFlagService;
     private final PaymentStateMachine paymentStateMachine;
     private final PaymentEventKeyFactory paymentEventKeyFactory;
     private final Clock clock;
@@ -50,6 +52,7 @@ public class PaymentReconciliationServiceImpl implements PaymentReconciliationSe
             PaymentEventRepository paymentEventRepository,
             CapacityReservationService capacityReservationService,
             LuckyNumberService luckyNumberService,
+            ParticipantFlagService participantFlagService,
             PaymentStateMachine paymentStateMachine,
             PaymentEventKeyFactory paymentEventKeyFactory,
             Clock clock) {
@@ -58,6 +61,7 @@ public class PaymentReconciliationServiceImpl implements PaymentReconciliationSe
         this.paymentEventRepository = paymentEventRepository;
         this.capacityReservationService = capacityReservationService;
         this.luckyNumberService = luckyNumberService;
+        this.participantFlagService = participantFlagService;
         this.paymentStateMachine = paymentStateMachine;
         this.paymentEventKeyFactory = paymentEventKeyFactory;
         this.clock = clock;
@@ -216,7 +220,13 @@ public class PaymentReconciliationServiceImpl implements PaymentReconciliationSe
     }
 
     private void applyConsolidatedApprovalIfEligible(Transaction transaction) {
-        if (transaction.getStatus() != PaymentStatus.APPROVED || transaction.getCapacityReviewStatus() != null) {
+        if (transaction.getStatus() != PaymentStatus.APPROVED) {
+            return;
+        }
+        if (transaction.getParticipantFlagCode() == null) {
+            transaction.assignParticipantFlag(participantFlagService.resolveForPhone(transaction.getPhone()));
+        }
+        if (transaction.getCapacityReviewStatus() != null) {
             return;
         }
         validateConsolidatedApprovedLedgerState(transaction);

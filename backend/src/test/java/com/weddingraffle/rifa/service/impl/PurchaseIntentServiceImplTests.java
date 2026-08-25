@@ -7,8 +7,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.weddingraffle.rifa.entity.PaymentStatus;
 import com.weddingraffle.rifa.entity.PurchaseIntent;
+import com.weddingraffle.rifa.entity.PurchaseIntentAction;
 import com.weddingraffle.rifa.entity.RaffleCombo;
+import com.weddingraffle.rifa.entity.Transaction;
 import com.weddingraffle.rifa.repository.PurchaseIntentRepository;
 import com.weddingraffle.rifa.repository.TransactionRepository;
 import com.weddingraffle.rifa.service.CapacityReservationService;
@@ -72,6 +75,28 @@ class PurchaseIntentServiceImplTests {
         combo.update(new BigDecimal("850.00"), true, 3, false, false);
         assertThat(intent.getQuantity()).isEqualTo(20);
         assertThat(intent.getTotalAmount()).isEqualByComparingTo("880.00");
+    }
+
+    @Test
+    void materializesPendingOnlineTransactionWithoutAssigningAFlag() {
+        PurchaseIntent intent = new PurchaseIntent(
+                "checkout-key", PurchaseIntentAction.MERCADO_PAGO_CHECKOUT, "request-hash", "external-reference");
+        intent.captureOnlineRequest(
+                "Guest User", "11999999999", null, null, 2, new BigDecimal("10.00"), new BigDecimal("20.00"), null);
+        intent.completeOnlineCheckout("preference-123", "https://checkout.example.com", "collector-123", "{}");
+        when(purchaseIntentRepository.findLockedByExternalReference("external-reference"))
+                .thenReturn(Optional.of(intent));
+        when(recoveryCodeService.resolveForPhone("11999999999")).thenReturn("4821");
+        when(transactionRepository.save(any(Transaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Transaction transaction = service().materializeOnlineTransaction("external-reference");
+
+        assertThat(transaction.getStatus()).isEqualTo(PaymentStatus.PENDING);
+        assertThat(transaction.getParticipantFlagCode()).isNull();
+        assertThat(transaction.getParticipantFlagName()).isNull();
+        assertThat(transaction.getParticipantFlagEmoji()).isNull();
+        verify(participantFlagService, never()).resolveForPhone(any());
+        verify(capacityReservationService).reserve("external-reference", 2);
     }
 
     private PurchaseIntentServiceImpl service() {

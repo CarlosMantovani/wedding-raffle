@@ -208,6 +208,19 @@ const flagAssets = Object.fromEntries(
   ]),
 ) as Record<string, string>;
 
+const stateFlagAssetModules = import.meta.glob<string>('/src/assets/flags/br-states/br-*.svg', {
+  eager: true,
+  import: 'default',
+  query: '?url',
+});
+
+const stateFlagAssets = Object.fromEntries(
+  Object.entries(stateFlagAssetModules).map(([path, assetUrl]) => [
+    path.slice(path.lastIndexOf('/') + 1, -'.svg'.length).toUpperCase(),
+    assetUrl,
+  ]),
+) as Record<string, string>;
+
 interface FlagEmojiProps {
   className?: string;
   emoji: string;
@@ -215,7 +228,7 @@ interface FlagEmojiProps {
 
 export function FlagEmoji({ className = '', emoji }: FlagEmojiProps) {
   const codePoint = twemoji.convert.toCodePoint(emoji).toLowerCase();
-  const assetUrl = flagAssets[codePoint];
+  const assetUrl = stateFlagAssets[emoji.toUpperCase()] ?? flagAssets[codePoint];
 
   if (!assetUrl) {
     return (
@@ -225,5 +238,7 @@ export function FlagEmoji({ className = '', emoji }: FlagEmojiProps) {
     );
   }
 
-  return <img alt={emoji} className={className} draggable={false} src={assetUrl} />;
+  return (
+    <img alt={emoji} className={`object-contain ${className}`} draggable={false} src={assetUrl} />
+  );
 }

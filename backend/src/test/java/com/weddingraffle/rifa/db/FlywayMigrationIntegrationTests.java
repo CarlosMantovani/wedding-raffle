@@ -93,6 +93,12 @@ class FlywayMigrationIntegrationTests {
                     .isTrue();
             assertThat(columnExists(statement, "transaction", "raffle_combo_id"))
                     .isTrue();
+            assertThat(columnIsNullable(statement, "transaction", "participant_flag_code"))
+                    .isTrue();
+            assertThat(columnIsNullable(statement, "transaction", "participant_flag_name"))
+                    .isTrue();
+            assertThat(columnIsNullable(statement, "transaction", "participant_flag_emoji"))
+                    .isTrue();
             assertThat(columnExists(statement, "lucky_number", "allocation_index"))
                     .isTrue();
             assertThat(constraintExists(statement, "uq_lucky_number_transaction_allocation_index"))
@@ -222,6 +228,62 @@ class FlywayMigrationIntegrationTests {
                 .hasStackTraceContaining("persisted count differs from transaction quantity");
     }
 
+    @Test
+    void removesFlagsFromPendingTransactionsAndAllowsDeletionWithoutFlagRelease() throws SQLException {
+        String schema = "pending_transaction_flag_cleanup";
+        flyway(schema, MigrationVersion.fromVersion("22")).migrate();
+
+        try (Connection connection = POSTGRES.createConnection("");
+                Statement statement = connection.createStatement()) {
+            statement.execute("set search_path to " + schema);
+            statement.executeUpdate(
+                    """
+                    insert into transaction (
+                        name,
+                        phone,
+                        quantity,
+                        total_amount,
+                        unit_price,
+                        status,
+                        payment_method,
+                        external_reference,
+                        recovery_code,
+                        participant_flag_code,
+                        participant_flag_name,
+                        participant_flag_emoji
+                    ) values (
+                        'Pending Buyer',
+                        '11999999999',
+                        1,
+                        10.00,
+                        10.00,
+                        'PENDING',
+                        'MERCADO_PAGO',
+                        'pending-flag-cleanup',
+                        '4821',
+                        'BRAZIL',
+                        'Brasil',
+                        '🇧🇷'
+                    )
+                    """);
+        }
+
+        flyway(schema, null).migrate();
+
+        try (Connection connection = POSTGRES.createConnection("");
+                Statement statement = connection.createStatement()) {
+            statement.execute("set search_path to " + schema);
+            assertThat(
+                            singleLong(
+                                    statement,
+                                    "select count(*) from transaction where external_reference = 'pending-flag-cleanup' and participant_flag_code is null and participant_flag_name is null and participant_flag_emoji is null"))
+                    .isEqualTo(1);
+            assertThat(statement.executeUpdate(
+                            "delete from transaction where external_reference = 'pending-flag-cleanup'"))
+                    .isEqualTo(1);
+        }
+    }
+
     private static Flyway flyway(String schema, MigrationVersion target) {
         var configuration = Flyway.configure()
                 .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
@@ -277,6 +339,16 @@ class FlywayMigrationIntegrationTests {
                         + tableName + "' and column_name = '" + columnName + "')")) {
             resultSet.next();
             return resultSet.getBoolean(1);
+        }
+    }
+
+    private static boolean columnIsNullable(Statement statement, String tableName, String columnName)
+            throws SQLException {
+        try (ResultSet resultSet = statement.executeQuery(
+                "select is_nullable from information_schema.columns where table_schema = current_schema() and table_name = '"
+                        + tableName + "' and column_name = '" + columnName + "'")) {
+            resultSet.next();
+            return "YES".equals(resultSet.getString(1));
         }
     }
 
