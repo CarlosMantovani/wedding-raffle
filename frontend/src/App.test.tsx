@@ -1189,6 +1189,32 @@ describe('App', () => {
     expect(screen.getByText('R$ 15,00')).toBeInTheDocument();
   });
 
+  it('renders admin settings API errors in Portuguese', async () => {
+    const user = userEvent.setup();
+    storeAdminSession(
+      createAdminSession({ accessToken: 'jwt-token', expiresIn: 3600, tokenType: 'Bearer' }),
+    );
+    mockedRaffleConfigService.updateUnitPrice.mockRejectedValue({
+      code: 'INVALID_UNIT_PRICE',
+      fieldErrors: [],
+      message: 'Invalid unit price',
+      status: 400,
+    });
+
+    renderApp('/admin/settings');
+
+    expect(await screen.findByRole('heading', { name: /pre.o unit.rio/i })).toBeInTheDocument();
+
+    await user.clear(screen.getByLabelText(/valor por n.mero/i));
+    await user.type(screen.getByLabelText(/valor por n.mero/i), '15');
+    await user.click(screen.getByRole('button', { name: /salvar pre.o/i }));
+
+    expect(
+      await screen.findByText('Verifique os dados informados e tente novamente.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Invalid unit price')).not.toBeInTheDocument();
+  });
+
   it('updates combo price, status, order, and configurable highlights without editing quantity', async () => {
     const user = userEvent.setup();
     storeAdminSession(
