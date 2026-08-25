@@ -816,6 +816,42 @@ describe('App', () => {
     });
   });
 
+  it('toggles the admin navigation menu on mobile', async () => {
+    const user = userEvent.setup();
+    storeAdminSession(
+      createAdminSession({ accessToken: 'jwt-token', expiresIn: 3600, tokenType: 'Bearer' }),
+    );
+
+    renderApp('/admin');
+
+    const openMenuButton = await screen.findByRole('button', {
+      name: 'Abrir menu administrativo',
+    });
+    const adminNavigation = screen.getByRole('navigation', { name: 'Menu administrativo' });
+
+    expect(openMenuButton).toHaveAttribute('aria-expanded', 'false');
+    expect(adminNavigation).toHaveClass('hidden');
+
+    await user.click(openMenuButton);
+
+    expect(
+      screen.getByRole('button', { name: 'Fechar menu administrativo' }),
+    ).toHaveAttribute('aria-expanded', 'true');
+    expect(adminNavigation).toHaveClass('flex');
+    expect(screen.getByRole('link', { name: 'Dinheiro' })).toHaveAttribute(
+      'href',
+      '/admin/cash-payment',
+    );
+    expect(screen.getByRole('link', { name: 'Configurações' })).toHaveAttribute(
+      'href',
+      '/admin/settings',
+    );
+    expect(screen.getByRole('link', { name: 'Sorteio' })).toHaveAttribute(
+      'href',
+      '/admin/draw',
+    );
+  });
+
   it('lists admin transactions with phone or name filter', async () => {
     const user = userEvent.setup();
     storeAdminSession(
