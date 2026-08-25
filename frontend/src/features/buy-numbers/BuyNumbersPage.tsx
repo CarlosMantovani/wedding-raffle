@@ -525,7 +525,7 @@ function ComboCard({
   return (
     <button
       aria-pressed={isSelected}
-      className={`relative min-h-36 rounded-xl border-2 px-3 pb-3 pt-5 text-left transition ${
+      className={`relative min-h-28 rounded-xl border-2 px-3 pb-3 pt-4 text-left transition ${
         isSelected
           ? 'border-terracotta bg-blush shadow-button'
           : 'border-line bg-white hover:border-gold'
@@ -544,12 +544,6 @@ function ComboCard({
       </span>
       <span className="mt-1 block text-[11px] text-warm-gray line-through">
         Preço normal {formatCurrency(combo.regularPrice)}
-      </span>
-      <span className="mt-2 block text-xs font-semibold text-olive">
-        Economize {formatCurrency(combo.savingsAmount)}
-      </span>
-      <span className="mt-1 block text-[11px] text-warm-gray">
-        {formatCurrency(combo.averagePricePerNumber)} por número
       </span>
     </button>
   );
