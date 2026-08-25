@@ -355,6 +355,11 @@ class PaymentApprovalAtomicityIntegrationTests {
                 UUID.randomUUID().toString(),
                 new TransactionCreateRequest("Atomic Buyer", "(11) 99999-9999", QUANTITY));
         transactionService.getStatus(created.externalReference(), null);
+        var pendingTransaction = transactionRepository
+                .findByExternalReference(created.externalReference())
+                .orElseThrow();
+        assertThat(pendingTransaction.getStatus()).isEqualTo(PaymentStatus.PENDING);
+        assertThat(pendingTransaction.getParticipantFlagCode()).isNull();
         return created;
     }
 
@@ -397,6 +402,7 @@ class PaymentApprovalAtomicityIntegrationTests {
                 .findByExternalReference(created.externalReference())
                 .orElseThrow();
         assertThat(transaction.getStatus()).isEqualTo(PaymentStatus.PENDING);
+        assertThat(transaction.getParticipantFlagCode()).isNull();
         assertThat(transaction.getLuckyNumbersGeneratedAt()).isNull();
         assertThat(luckyNumberRepository.count()).isZero();
         assertThat(paymentEventRepository.count()).isZero();
@@ -416,6 +422,9 @@ class PaymentApprovalAtomicityIntegrationTests {
                 .findByExternalReference(created.externalReference())
                 .orElseThrow();
         assertThat(transaction.getStatus()).isEqualTo(PaymentStatus.APPROVED);
+        assertThat(transaction.getParticipantFlagCode()).isNotBlank();
+        assertThat(transaction.getParticipantFlagName()).isNotBlank();
+        assertThat(transaction.getParticipantFlagEmoji()).isNotBlank();
         assertThat(transaction.getLuckyNumbersGeneratedAt()).isNotNull();
 
         Long completedBatchMarkers = jdbcTemplate.queryForObject(

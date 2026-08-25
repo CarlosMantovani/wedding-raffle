@@ -58,8 +58,8 @@ export interface TransactionStatusResponse {
   status: PaymentStatus;
   quantity: number;
   totalAmount: string;
-  participantFlagName: string;
-  participantFlagEmoji: string;
+  participantFlagName: string | null;
+  participantFlagEmoji: string | null;
   luckyNumbers: string[];
   previousLuckyNumbers?: string[];
   totalLuckyNumbers?: number;

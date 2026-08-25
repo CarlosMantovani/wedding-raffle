@@ -33,7 +33,7 @@ class PublicHomeServiceImplTests {
     private TransactionRepository transactionRepository;
 
     @Test
-    void returnsTopThirtyFlagRanking() {
+    void returnsTopFifteenFlagRanking() {
         var pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
         when(transactionRepository.findApprovedFlagRanking(pageableCaptor.capture()))
                 .thenReturn(List.of(
@@ -51,7 +51,7 @@ class PublicHomeServiceImplTests {
         assertThat(ranking.get(1).position()).isEqualTo(2);
         assertThat(ranking.get(1).progressPercent()).isEqualByComparingTo("26.67");
         assertThat(pageableCaptor.getValue().getPageNumber()).isZero();
-        assertThat(pageableCaptor.getValue().getPageSize()).isEqualTo(30);
+        assertThat(pageableCaptor.getValue().getPageSize()).isEqualTo(15);
         verify(transactionRepository).findApprovedFlagRanking(pageableCaptor.getValue());
         verify(transactionRepository).sumApprovedQuantity();
     }

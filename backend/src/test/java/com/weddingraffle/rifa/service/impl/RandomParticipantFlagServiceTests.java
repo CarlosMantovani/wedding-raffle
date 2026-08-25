@@ -31,9 +31,9 @@ class RandomParticipantFlagServiceTests {
     void reusesExistingFlagForKnownPhone() {
         RandomParticipantFlagService service = new RandomParticipantFlagService(transactionRepository);
         Transaction transaction =
-                new Transaction("guest@example.com", 1, new BigDecimal("10.00"), PaymentStatus.PENDING, "external");
+                new Transaction("guest@example.com", 1, new BigDecimal("10.00"), PaymentStatus.APPROVED, "external");
         transaction.assignParticipantFlag(new ParticipantFlag("BRAZIL", "Brasil", "🇧🇷"));
-        when(transactionRepository.findFirstByPhoneOrderByCreatedAtAsc("11999999999"))
+        when(transactionRepository.findFirstByPhoneAndParticipantFlagCodeIsNotNullOrderByCreatedAtAsc("11999999999"))
                 .thenReturn(Optional.of(transaction));
 
         ParticipantFlag flag = service.resolveForPhone("11999999999");
@@ -46,7 +46,7 @@ class RandomParticipantFlagServiceTests {
     @Test
     void assignsOnlyUnusedFlagForNewPhone() {
         RandomParticipantFlagService service = new RandomParticipantFlagService(transactionRepository);
-        when(transactionRepository.findFirstByPhoneOrderByCreatedAtAsc("11999999999"))
+        when(transactionRepository.findFirstByPhoneAndParticipantFlagCodeIsNotNullOrderByCreatedAtAsc("11999999999"))
                 .thenReturn(Optional.empty());
         List<String> flagCodes = flagCodes();
         List<String> usedFlagCodes = new ArrayList<>(flagCodes);
@@ -61,7 +61,7 @@ class RandomParticipantFlagServiceTests {
     @Test
     void failsWhenAllFlagsAreAlreadyUsed() {
         RandomParticipantFlagService service = new RandomParticipantFlagService(transactionRepository);
-        when(transactionRepository.findFirstByPhoneOrderByCreatedAtAsc("11999999999"))
+        when(transactionRepository.findFirstByPhoneAndParticipantFlagCodeIsNotNullOrderByCreatedAtAsc("11999999999"))
                 .thenReturn(Optional.empty());
         when(transactionRepository.findDistinctParticipantFlagCodes()).thenReturn(flagCodes());
 
@@ -71,18 +71,37 @@ class RandomParticipantFlagServiceTests {
     }
 
     @Test
-    void loadsALargeFlagCatalog() {
-        assertThat(flagCodes()).hasSizeGreaterThanOrEqualTo(190).doesNotHaveDuplicates();
+    void loadsExpandedFlagCatalogWithValidUniqueEntriesAndCapacityMargin() {
+        List<ParticipantFlag> flags = flags();
+
+        assertThat(flags).hasSize(222).hasSizeGreaterThan(200);
+        assertThat(flags).allSatisfy(flag -> {
+            assertThat(flag.code()).matches("[A-Z0-9_]+");
+            assertThat(flag.name()).isNotBlank();
+            assertThat(flag.emoji()).isNotBlank();
+        });
+        assertThat(flags).extracting(ParticipantFlag::code).doesNotHaveDuplicates();
+        assertThat(flags).extracting(ParticipantFlag::emoji).doesNotHaveDuplicates();
+        assertThat(flags.stream().filter(flag -> flag.emoji().startsWith("BR-")).count())
+                .isEqualTo(27);
+        assertThat(flags)
+                .extracting(ParticipantFlag::code)
+                .noneMatch(code -> code.contains("COAT_OF_ARMS") || code.contains("CREST"));
     }
 
     private static List<String> flagCodes() {
+        return flags().stream().map(ParticipantFlag::code).toList();
+    }
+
+    private static List<ParticipantFlag> flags() {
         try (var input = RandomParticipantFlagServiceTests.class
                         .getClassLoader()
                         .getResourceAsStream("participant-flags.csv");
                 var reader = new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8))) {
             return reader.lines()
                     .filter(line -> !line.isBlank() && !line.startsWith("#"))
-                    .map(line -> line.split(";", -1)[0])
+                    .map(line -> line.split(";", -1))
+                    .map(parts -> new ParticipantFlag(parts[0], parts[1], parts[2]))
                     .toList();
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to load participant flags test resource.", exception);

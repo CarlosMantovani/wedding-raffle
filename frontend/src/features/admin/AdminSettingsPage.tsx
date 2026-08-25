@@ -9,6 +9,7 @@ import { Card } from '../../components/ui/Card';
 import { TextInput } from '../../components/ui/TextInput';
 import { raffleConfigService } from '../../services/raffleConfigService';
 import { fromDateTimeLocalValue, toDateTimeLocalValue } from '../../utils/dateTime';
+import { getPortugueseErrorMessage } from '../../utils/errorMessages';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
 import type { ApiError } from '../../types/api';
 import type { RaffleComboResponse } from '../../types/transaction';
@@ -413,7 +414,8 @@ function RaffleComboSettings({
 
 function getApiErrorMessage(error: unknown, fallback: string) {
   if (error && typeof error === 'object' && 'message' in error) {
-    return String((error as Pick<ApiError, 'message'>).message);
+    const apiError = error as Pick<ApiError, 'message' | 'status'>;
+    return getPortugueseErrorMessage(apiError.message, apiError.status);
   }
   return fallback;
 }

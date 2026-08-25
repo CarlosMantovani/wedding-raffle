@@ -24,8 +24,8 @@ const pendingTransaction: TransactionStatusResponse = {
   externalReference,
   recoveryCode: '4821',
   luckyNumbers: [],
-  participantFlagEmoji: '🇧🇷',
-  participantFlagName: 'Brasil',
+  participantFlagEmoji: null,
+  participantFlagName: null,
   quantity: 2,
   status: 'PENDENTE',
   totalAmount: '20.00',
@@ -33,6 +33,8 @@ const pendingTransaction: TransactionStatusResponse = {
 const approvedTransaction: TransactionStatusResponse = {
   ...pendingTransaction,
   luckyNumbers: ['00042', '12345'],
+  participantFlagEmoji: '🇧🇷',
+  participantFlagName: 'Brasil',
   status: 'APROVADO',
 };
 

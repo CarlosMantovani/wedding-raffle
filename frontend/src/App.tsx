@@ -1,11 +1,23 @@
 import { lazy, Suspense } from 'react';
 
 import { BuyNumbersPage } from './features/buy-numbers/BuyNumbersPage';
-import { RecoveryNumbersPage } from './features/buy-numbers/RecoveryNumbersPage';
-import { FlagRankingPage } from './features/flag-ranking/FlagRankingPage';
-import { PaymentReturnPage } from './features/payment-return/PaymentReturnPage';
 
 const AdminApp = lazy(() => import('./features/admin/AdminApp'));
+const FlagRankingPage = lazy(() =>
+  import('./features/flag-ranking/FlagRankingPage').then((module) => ({
+    default: module.FlagRankingPage,
+  })),
+);
+const PaymentReturnPage = lazy(() =>
+  import('./features/payment-return/PaymentReturnPage').then((module) => ({
+    default: module.PaymentReturnPage,
+  })),
+);
+const RecoveryNumbersPage = lazy(() =>
+  import('./features/buy-numbers/RecoveryNumbersPage').then((module) => ({
+    default: module.RecoveryNumbersPage,
+  })),
+);
 
 export function App() {
   const path = window.location.pathname;
@@ -25,11 +37,19 @@ export function App() {
   }
 
   if (path.startsWith('/payment-return/')) {
-    return <PaymentReturnPage />;
+    return (
+      <Suspense fallback={<PublicPageLoading />}>
+        <PaymentReturnPage />
+      </Suspense>
+    );
   }
 
   if (path === '/flag-ranking') {
-    return <FlagRankingPage />;
+    return (
+      <Suspense fallback={<PublicPageLoading />}>
+        <FlagRankingPage />
+      </Suspense>
+    );
   }
 
   if (path === '/buy') {
@@ -37,8 +57,20 @@ export function App() {
   }
 
   if (path === '/recover') {
-    return <RecoveryNumbersPage />;
+    return (
+      <Suspense fallback={<PublicPageLoading />}>
+        <RecoveryNumbersPage />
+      </Suspense>
+    );
   }
 
   return <BuyNumbersPage />;
+}
+
+function PublicPageLoading() {
+  return (
+    <main className="grid min-h-screen place-items-center bg-cream px-6 text-charcoal">
+      <p className="text-sm font-semibold text-warm-gray">Carregando...</p>
+    </main>
+  );
 }

@@ -19,17 +19,20 @@ import { isPastDateTime } from '../../utils/dateTime';
 import { formatCurrency } from '../../utils/formatters';
 import { clearIdempotencyKey, getOrCreateIdempotencyKey } from '../../utils/idempotency';
 import { formatPhoneNumber, normalizePhoneNumber } from '../../utils/phone';
+import { FlagRankingPanel } from '../flag-ranking/FlagRankingPanel';
 import { CountdownPanel } from './CountdownPanel';
 import { buyerSchema, type BuyerFormData } from './schemas';
 
 const CHECKOUT_IDEMPOTENCY_ACTION = 'mercado-pago-checkout';
 const GIFT_MESSAGE_MAX_LENGTH = 280;
+type PurchaseStep = 'quantity' | 'message' | 'review';
 
 export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolean }) {
   const [buyer, setBuyer] = useState<BuyerFormData | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [giftMessage, setGiftMessage] = useState('');
   const [selectedComboId, setSelectedComboId] = useState<number | null>(null);
+  const [purchaseStep, setPurchaseStep] = useState<PurchaseStep>('quantity');
   const [, setTick] = useState(0);
 
   const {
@@ -81,6 +84,7 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
       name: data.name.trim(),
       phone: normalizePhoneNumber(data.phone),
     });
+    setPurchaseStep('quantity');
   };
 
   const decreaseQuantity = () => {
@@ -120,7 +124,13 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
     });
   };
 
-  const currentStep: 1 | 2 = buyer ? 2 : 1;
+  const currentStep: 1 | 2 | 3 | 4 = !buyer
+    ? 1
+    : purchaseStep === 'quantity'
+      ? 2
+      : purchaseStep === 'message'
+        ? 3
+        : 4;
   const unitPrice = quoteQuery.data?.unitPrice;
   const totalAmount = quoteQuery.data?.totalAmount;
   const quoteMatchesSelection =
@@ -129,6 +139,9 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
   const selectedCombo = quoteMatchesSelection
     ? quoteQuery.data?.availableCombos.find((combo) => combo.id === selectedComboId)
     : undefined;
+  const canContinueFromQuantity =
+    Boolean(quoteQuery.data) && !quoteQuery.isFetching && quoteMatchesSelection;
+  const giftMessageTooLong = giftMessage.trim().length > GIFT_MESSAGE_MAX_LENGTH;
 
   return (
     <main className="min-h-screen bg-cream px-6 pb-16 pt-10 text-charcoal">
@@ -212,11 +225,11 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
               </a>
             </form>
           </Card>
-        ) : (
+        ) : purchaseStep === 'quantity' ? (
           <section className="space-y-4" aria-labelledby="quantity-title">
             <div className="text-center">
               <h1 className="font-serif text-lg text-charcoal" id="quantity-title">
-                Quantos números você quer?
+                Escolha seus números
               </h1>
               <button
                 className="mt-2 text-xs font-semibold text-green underline underline-offset-4"
@@ -337,6 +350,31 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
               </dl>
             </Card>
 
+            {quoteQuery.isError ? (
+              <p
+                className="rounded-lg border border-wine/30 bg-white px-4 py-3 text-sm text-wine"
+                role="alert"
+              >
+                {publicMessages.quoteError}
+              </p>
+            ) : null}
+
+            <Button
+              disabled={!canContinueFromQuantity}
+              onClick={() => setPurchaseStep('message')}
+              type="button"
+            >
+              Continuar
+            </Button>
+          </section>
+        ) : purchaseStep === 'message' ? (
+          <section className="space-y-4" aria-labelledby="message-title">
+            <div className="text-center">
+              <h1 className="font-serif text-lg text-charcoal" id="message-title">
+                Mensagem para o casal
+              </h1>
+            </div>
+
             <Card className="bg-white/85 shadow-none">
               <label className="block text-sm font-semibold text-charcoal" htmlFor="gift-message">
                 Mensagem para o casal (opcional)
@@ -354,6 +392,66 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
               </p>
             </Card>
 
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Button onClick={() => setPurchaseStep('quantity')} type="button" variant="secondary">
+                Voltar
+              </Button>
+              <Button
+                disabled={giftMessageTooLong}
+                onClick={() => setPurchaseStep('review')}
+                type="button"
+              >
+                Revisar dados
+              </Button>
+            </div>
+          </section>
+        ) : (
+          <section className="space-y-4" aria-labelledby="review-title">
+            <div className="text-center">
+              <h1 className="font-serif text-lg text-charcoal" id="review-title">
+                Revise seus dados
+              </h1>
+            </div>
+
+            <Card className="bg-ivory-deep shadow-none">
+              <dl className="space-y-3">
+                <div className="flex items-center justify-between gap-4">
+                  <dt className="text-sm text-warm-gray">Nome</dt>
+                  <dd className="text-right text-sm font-semibold">{buyer.name}</dd>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <dt className="text-sm text-warm-gray">Telefone</dt>
+                  <dd className="text-sm font-semibold">{formatPhoneNumber(buyer.phone)}</dd>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <dt className="text-sm text-warm-gray">Quantidade</dt>
+                  <dd className="text-sm font-semibold">
+                    {quantity} {quantity === 1 ? 'número' : 'números'}
+                  </dd>
+                </div>
+                <div className="h-px bg-line" />
+                <div className="flex items-center justify-between gap-4">
+                  <dt className="text-base font-bold">Total</dt>
+                  <dd className="font-serif text-3xl font-bold text-green">
+                    {quoteQuery.isFetching || !quoteMatchesSelection
+                      ? '...'
+                      : totalAmount
+                        ? formatCurrency(totalAmount)
+                        : '-'}
+                  </dd>
+                </div>
+              </dl>
+            </Card>
+
+            {giftMessage.trim() ? (
+              <Card className="bg-white/85 shadow-none">
+                <p className="text-sm font-semibold text-charcoal">Mensagem</p>
+                <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-warm-gray">
+                  {giftMessage.trim()}
+                </p>
+              </Card>
+            ) : null}
+
             {quoteQuery.isError ? (
               <p
                 className="rounded-lg border border-wine/30 bg-white px-4 py-3 text-sm text-wine"
@@ -362,6 +460,21 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
                 {publicMessages.quoteError}
               </p>
             ) : null}
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Button onClick={() => setPurchaseStep('message')} type="button" variant="secondary">
+                Voltar
+              </Button>
+              <Button
+                disabled={!canContinueFromQuantity || giftMessageTooLong}
+                isLoading={createTransactionMutation.isPending}
+                onClick={handlePay}
+                type="button"
+              >
+                <CreditCard aria-hidden="true" className="h-5 w-5" />
+                Pagar com Mercado Pago
+              </Button>
+            </div>
 
             {createTransactionMutation.isError ? (
               <p
@@ -372,21 +485,6 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
               </p>
             ) : null}
 
-            <Button
-              disabled={
-                !quoteQuery.data ||
-                quoteQuery.isFetching ||
-                !quoteMatchesSelection ||
-                giftMessage.trim().length > GIFT_MESSAGE_MAX_LENGTH
-              }
-              isLoading={createTransactionMutation.isPending}
-              onClick={handlePay}
-              type="button"
-            >
-              <CreditCard aria-hidden="true" className="h-5 w-5" />
-              Pagar com Mercado Pago
-            </Button>
-
             <p className="px-2 text-center text-xs leading-relaxed text-warm-gray">
               Você será redirecionado ao Mercado Pago para concluir o pagamento com segurança.
             </p>
@@ -395,6 +493,10 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
         <RaffleResultPanel
           isDrawClosed={isDrawClosed}
           result={homeSummaryQuery.data?.raffleResult ?? null}
+        />
+        <FlagRankingPanel
+          isLoading={homeSummaryQuery.isLoading}
+          ranking={homeSummaryQuery.data?.flagRanking ?? []}
         />
       </div>
     </main>
@@ -423,7 +525,7 @@ function ComboCard({
   return (
     <button
       aria-pressed={isSelected}
-      className={`relative min-h-36 rounded-xl border-2 px-3 pb-3 pt-5 text-left transition ${
+      className={`relative min-h-28 rounded-xl border-2 px-3 pb-3 pt-4 text-left transition ${
         isSelected
           ? 'border-terracotta bg-blush shadow-button'
           : 'border-line bg-white hover:border-gold'
@@ -442,12 +544,6 @@ function ComboCard({
       </span>
       <span className="mt-1 block text-[11px] text-warm-gray line-through">
         Preço normal {formatCurrency(combo.regularPrice)}
-      </span>
-      <span className="mt-2 block text-xs font-semibold text-olive">
-        Economize {formatCurrency(combo.savingsAmount)}
-      </span>
-      <span className="mt-1 block text-[11px] text-warm-gray">
-        {formatCurrency(combo.averagePricePerNumber)} por número
       </span>
     </button>
   );

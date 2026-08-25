@@ -1,4 +1,4 @@
-import { AlertTriangle, Check, Copy, Download, Gift, Loader2 } from 'lucide-react';
+import { AlertTriangle, Check, Copy, Download, Gift, Home, Loader2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 
@@ -15,7 +15,10 @@ function getExternalReference(searchParams: URLSearchParams) {
 
 function getPaymentId(searchParams: URLSearchParams) {
   return (
-    searchParams.get('payment_id') ?? searchParams.get('collection_id') ?? searchParams.get('paymentId') ?? ''
+    searchParams.get('payment_id') ??
+    searchParams.get('collection_id') ??
+    searchParams.get('paymentId') ??
+    ''
   );
 }
 
@@ -101,19 +104,21 @@ export function PaymentReturnPage() {
             </div>
           </div>
 
-          <Card className="border border-[#EEE6DF] bg-white/90 text-center shadow-none">
-            <p className="text-xs font-bold uppercase tracking-wide text-terracotta">
-              Sua bandeira
-            </p>
-            <div className="mt-3 flex items-center justify-center gap-3">
-              <span className="grid h-14 w-14 place-items-center rounded-full bg-blush">
-                <FlagEmoji className="h-9 w-9" emoji={transaction.participantFlagEmoji} />
-              </span>
-              <span className="font-serif text-2xl font-bold text-charcoal">
-                {transaction.participantFlagName}
-              </span>
-            </div>
-          </Card>
+          {transaction.participantFlagEmoji && transaction.participantFlagName ? (
+            <Card className="border border-[#EEE6DF] bg-white/90 text-center shadow-none">
+              <p className="text-xs font-bold uppercase tracking-wide text-terracotta">
+                Sua bandeira
+              </p>
+              <div className="mt-3 flex items-center justify-center gap-3">
+                <span className="grid h-14 w-14 place-items-center rounded-full bg-blush">
+                  <FlagEmoji className="h-9 w-9" emoji={transaction.participantFlagEmoji} />
+                </span>
+                <span className="font-serif text-2xl font-bold text-charcoal">
+                  {transaction.participantFlagName}
+                </span>
+              </div>
+            </Card>
+          ) : null}
 
           <Card className="border border-gold/30 text-center">
             {previousLuckyNumbers.length > 0 ? (
@@ -168,7 +173,11 @@ export function PaymentReturnPage() {
             Que este número te traga a alegria de celebrar junto ao casal neste dia tão especial.
           </p>
 
-          <a className="text-sm font-semibold text-warm-gray underline underline-offset-4" href="/">
+          <a
+            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-green px-5 py-3 text-sm font-semibold text-white shadow-button transition hover:bg-green-deep focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green"
+            href="/"
+          >
+            <Home aria-hidden="true" className="h-5 w-5" />
             Voltar ao início
           </a>
         </div>

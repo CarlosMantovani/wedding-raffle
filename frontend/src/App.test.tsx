@@ -89,6 +89,11 @@ function renderApp(path = '/') {
   );
 }
 
+async function advancePurchaseFlowToReview(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: 'Continuar' }));
+  await user.click(screen.getByRole('button', { name: 'Revisar dados' }));
+}
+
 describe('App', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -202,41 +207,48 @@ describe('App', () => {
     ]);
   });
 
-  it('does not render flag ranking on the purchase page', async () => {
+  it('renders the flag ranking preview on the purchase page', async () => {
     renderApp();
 
-    expect(await screen.findByRole('button', { name: 'Continuar' })).toBeInTheDocument();
-    expect(screen.queryByText('Ranking de bandeiras')).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Ver top 30' })).not.toBeInTheDocument();
+    expect(await screen.findByText('Ranking de bandeiras')).toBeInTheDocument();
+    expect(screen.getByText('Uma bandeira exclusiva por telefone.')).toBeInTheDocument();
+    expect(screen.getByText('Novas compras somam pontos na mesma bandeira.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Em caso de empate de bandeiras, a compra mais recente fica na frente'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('A líder também ganhará um prêmio especial.')).toBeInTheDocument();
+    expect(await screen.findAllByText('Brasil')).toHaveLength(2);
+    expect(screen.getAllByRole('progressbar', { name: 'Progresso relativo de Brasil' })).toHaveLength(2);
+    expect(screen.getByRole('link', { name: 'Ver top 15' })).toHaveAttribute('href', '/flag-ranking');
   });
 
-  it('renders the top thirty flag ranking page', async () => {
+  it('renders the top fifteen flag ranking page', async () => {
     mockedHomeService.getSummary.mockResolvedValue({
       scheduledDrawAt: '2026-09-06T02:00:00Z',
       raffleResult: null,
       flagRanking: [],
     });
     mockedHomeService.getFlagRanking.mockResolvedValue(
-      Array.from({ length: 30 }, (_, index) => ({
+      Array.from({ length: 15 }, (_, index) => ({
         code: `FLAG_${index + 1}`,
         emoji: '🇧🇷',
         name: `Bandeira ${index + 1}`,
         position: index + 1,
-        progressPercent: Number((((30 - index) * 100) / 30).toFixed(2)),
+        progressPercent: Number((((15 - index) * 100) / 15).toFixed(2)),
       })),
     );
 
     renderApp('/flag-ranking');
 
-    expect(await screen.findByText('Top 30 bandeiras')).toBeInTheDocument();
+    expect(await screen.findByText('Top 15 bandeiras')).toBeInTheDocument();
     expect(await screen.findByText('Contagem para o sorteio')).toBeInTheDocument();
     expect(screen.getByText('Atualiza a cada 5 minutos')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Voltar' })).toHaveAttribute('href', '/');
-    expect((await screen.findAllByText('Bandeira 30')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('Bandeira 15')).length).toBeGreaterThan(0);
     expect(mockedHomeService.getFlagRanking).toHaveBeenCalledTimes(1);
   });
 
-  it('refreshes the top thirty flag ranking every five minutes', async () => {
+  it('refreshes the top fifteen flag ranking every five minutes', async () => {
     vi.useFakeTimers();
     mockedHomeService.getFlagRanking.mockResolvedValue([
       {
@@ -477,6 +489,26 @@ describe('App', () => {
     expect(await screen.findAllByText('R$ 225,00')).not.toHaveLength(0);
     expect(screen.queryByText('R$ 975,00')).not.toBeInTheDocument();
 
+    await user.click(screen.getByRole('button', { name: 'Aumentar quantidade' }));
+    await waitFor(() =>
+      expect(mockedTransactionService.quote).toHaveBeenLastCalledWith({
+        name: 'Guest User',
+        phone: '11999999999',
+        quantity: 31,
+      }),
+    );
+
+    await user.click(comboButton);
+    await waitFor(() =>
+      expect(mockedTransactionService.quote).toHaveBeenLastCalledWith({
+        comboId: 4,
+        name: 'Guest User',
+        phone: '11999999999',
+        quantity: 30,
+      }),
+    );
+
+    await advancePurchaseFlowToReview(user);
     await user.click(screen.getByRole('button', { name: /Pagar com Mercado Pago/i }));
     expect(mockedTransactionService.create).toHaveBeenCalledWith(
       {
@@ -486,15 +518,6 @@ describe('App', () => {
         quantity: 30,
       },
       expect.any(String),
-    );
-
-    await user.click(screen.getByRole('button', { name: 'Aumentar quantidade' }));
-    await waitFor(() =>
-      expect(mockedTransactionService.quote).toHaveBeenLastCalledWith({
-        name: 'Guest User',
-        phone: '11999999999',
-        quantity: 31,
-      }),
     );
   });
 
@@ -519,6 +542,7 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'Continuar' }));
     await screen.findAllByText('R$ 10,00');
 
+    await advancePurchaseFlowToReview(user);
     await user.click(screen.getByRole('button', { name: /Pagar com Mercado Pago/i }));
     await waitFor(() => expect(mockedTransactionService.create).toHaveBeenCalledTimes(1));
 
@@ -533,7 +557,7 @@ describe('App', () => {
     expect(assign).toHaveBeenCalledWith('https://checkout.example.com');
   });
 
-  it('sends optional gift message trimmed from the quantity step', async () => {
+  it('sends optional gift message trimmed from the message step', async () => {
     const user = userEvent.setup();
     const assign = vi.fn();
     Object.defineProperty(window, 'location', {
@@ -553,10 +577,12 @@ describe('App', () => {
     await user.type(screen.getByLabelText('Telefone'), '(11) 99999-9999');
     await user.click(screen.getByRole('button', { name: 'Continuar' }));
     await screen.findAllByText('R$ 10,00');
+    await user.click(screen.getByRole('button', { name: 'Continuar' }));
     expect(screen.getByText('0/280')).toBeInTheDocument();
 
     await user.type(screen.getByLabelText('Mensagem para o casal (opcional)'), '  Felicidades!  ');
     expect(screen.getByText('16/280')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Revisar dados' }));
     await user.click(screen.getByRole('button', { name: /Pagar com Mercado Pago/i }));
 
     await waitFor(() => expect(mockedTransactionService.create).toHaveBeenCalledTimes(1));
@@ -593,6 +619,7 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'Continuar' }));
     await screen.findAllByText('R$ 10,00');
 
+    await advancePurchaseFlowToReview(user);
     await user.click(screen.getByRole('button', { name: /Pagar com Mercado Pago/i }));
     await screen.findByRole('alert');
     const firstKey = mockedTransactionService.create.mock.calls[0][1];
@@ -613,6 +640,7 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'Continuar' }));
     await screen.findAllByText('R$ 10,00');
 
+    await advancePurchaseFlowToReview(user);
     const payButton = screen.getByRole('button', { name: /Pagar com Mercado Pago/i });
     await user.dblClick(payButton);
 
@@ -807,6 +835,42 @@ describe('App', () => {
       username: 'admin',
       password: 'password',
     });
+  });
+
+  it('toggles the admin navigation menu on mobile', async () => {
+    const user = userEvent.setup();
+    storeAdminSession(
+      createAdminSession({ accessToken: 'jwt-token', expiresIn: 3600, tokenType: 'Bearer' }),
+    );
+
+    renderApp('/admin');
+
+    const openMenuButton = await screen.findByRole('button', {
+      name: 'Abrir menu administrativo',
+    });
+    const adminNavigation = screen.getByRole('navigation', { name: 'Menu administrativo' });
+
+    expect(openMenuButton).toHaveAttribute('aria-expanded', 'false');
+    expect(adminNavigation).toHaveClass('hidden');
+
+    await user.click(openMenuButton);
+
+    expect(
+      screen.getByRole('button', { name: 'Fechar menu administrativo' }),
+    ).toHaveAttribute('aria-expanded', 'true');
+    expect(adminNavigation).toHaveClass('flex');
+    expect(screen.getByRole('link', { name: 'Dinheiro' })).toHaveAttribute(
+      'href',
+      '/admin/cash-payment',
+    );
+    expect(screen.getByRole('link', { name: 'Configurações' })).toHaveAttribute(
+      'href',
+      '/admin/settings',
+    );
+    expect(screen.getByRole('link', { name: 'Sorteio' })).toHaveAttribute(
+      'href',
+      '/admin/draw',
+    );
   });
 
   it('lists admin transactions with phone or name filter', async () => {
@@ -1082,7 +1146,9 @@ describe('App', () => {
     expect(screen.getByText('12', { selector: 'dd' })).toBeInTheDocument();
     expect(screen.getByText('Bandeira do participante')).toBeInTheDocument();
     expect(screen.getByText('Brasil')).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: '🇧🇷' })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole('img', { name: '🇧🇷' }).tagName).toBe('IMG');
+    });
     expect(await screen.findByText('00008')).toBeInTheDocument();
     expect(screen.queryByText('00009')).not.toBeInTheDocument();
     expect(screen.getByText('00090')).toBeInTheDocument();
@@ -1144,6 +1210,32 @@ describe('App', () => {
     );
     expect(await screen.findByText('Preço atualizado com sucesso.')).toBeInTheDocument();
     expect(screen.getByText('R$ 15,00')).toBeInTheDocument();
+  });
+
+  it('renders admin settings API errors in Portuguese', async () => {
+    const user = userEvent.setup();
+    storeAdminSession(
+      createAdminSession({ accessToken: 'jwt-token', expiresIn: 3600, tokenType: 'Bearer' }),
+    );
+    mockedRaffleConfigService.updateUnitPrice.mockRejectedValue({
+      code: 'INVALID_UNIT_PRICE',
+      fieldErrors: [],
+      message: 'Invalid unit price',
+      status: 400,
+    });
+
+    renderApp('/admin/settings');
+
+    expect(await screen.findByRole('heading', { name: /pre.o unit.rio/i })).toBeInTheDocument();
+
+    await user.clear(screen.getByLabelText(/valor por n.mero/i));
+    await user.type(screen.getByLabelText(/valor por n.mero/i), '15');
+    await user.click(screen.getByRole('button', { name: /salvar pre.o/i }));
+
+    expect(
+      await screen.findByText('Verifique os dados informados e tente novamente.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Invalid unit price')).not.toBeInTheDocument();
   });
 
   it('updates combo price, status, order, and configurable highlights without editing quantity', async () => {
