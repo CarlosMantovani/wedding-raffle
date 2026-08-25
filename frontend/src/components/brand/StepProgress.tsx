@@ -11,14 +11,18 @@ const steps = [
 
 export function StepProgress({ currentStep }: StepProgressProps) {
   return (
-    <ol aria-label="Progresso da compra" className="mx-auto grid w-full grid-cols-4 gap-1">
+    <ol aria-label="Progresso da compra" className="mx-auto grid w-full grid-cols-4 items-start gap-1">
       {steps.map((step, index) => {
         const isDone = step.id < currentStep;
         const isCurrent = step.id === currentStep;
 
         return (
-          <li className="flex min-w-0 items-center gap-1" key={step.id}>
-            <div className="flex flex-col items-center gap-1">
+          <li className="grid min-w-0 grid-cols-[1fr_auto_1fr] items-start" key={step.id}>
+            <span
+              aria-hidden="true"
+              className={`mt-4 h-px min-w-0 ${index === 0 ? 'bg-transparent' : 'bg-line'}`}
+            />
+            <div className="flex min-w-0 flex-col items-center gap-1">
               <span
                 className={`grid h-8 w-8 place-items-center rounded-full text-xs font-bold ${
                   isDone || isCurrent ? 'bg-gold text-charcoal' : 'bg-ivory-deep text-warm-gray'
@@ -34,9 +38,12 @@ export function StepProgress({ currentStep }: StepProgressProps) {
                 {step.label}
               </span>
             </div>
-            {index < steps.length - 1 ? (
-              <span aria-hidden="true" className="h-px min-w-0 flex-1 bg-line" />
-            ) : null}
+            <span
+              aria-hidden="true"
+              className={`mt-4 h-px min-w-0 ${
+                index === steps.length - 1 ? 'bg-transparent' : 'bg-line'
+              }`}
+            />
           </li>
         );
       })}
