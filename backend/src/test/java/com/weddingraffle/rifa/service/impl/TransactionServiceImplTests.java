@@ -345,6 +345,24 @@ class TransactionServiceImplTests {
         assertThat(response.luckyNumbers()).containsExactly("00001", "00002");
         assertThat(response.previousLuckyNumbers()).containsExactly("00090", "00091");
         assertThat(response.totalLuckyNumbers()).isEqualTo(4);
+        assertThat(response.checkoutUrl()).isNull();
+    }
+
+    @Test
+    void returnsCheckoutUrlForPendingTransactionStatus() {
+        TransactionServiceImpl transactionService = transactionService();
+        Transaction transaction = new Transaction(
+                "guest@example.com", 2, new BigDecimal("20.00"), PaymentStatus.PENDING, "external-reference-123");
+        transaction.assignPreference("preference-123", "https://checkout.example.com", "collector-123");
+        transaction.assignRecoveryCode("4821");
+        when(transactionRepository.findByExternalReference("external-reference-123"))
+                .thenReturn(Optional.of(transaction));
+        when(luckyNumberService.findNumbers("external-reference-123")).thenReturn(List.of());
+
+        var response = transactionService.getStatus("external-reference-123", null);
+
+        assertThat(response.status()).isEqualTo(PaymentStatusResponse.PENDENTE);
+        assertThat(response.checkoutUrl()).isEqualTo("https://checkout.example.com");
     }
 
     @Test

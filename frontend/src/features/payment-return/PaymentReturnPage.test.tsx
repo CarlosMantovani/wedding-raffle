@@ -112,38 +112,38 @@ describe('PaymentReturnPage polling', () => {
     vi.useRealTimers();
   });
 
-  it('polls every five seconds during the first minute', async () => {
+  it('polls every fifteen seconds during the first minute', async () => {
     renderPage();
     await flushAsyncWork();
     expect(mockedTransactionService.getStatus).toHaveBeenCalledTimes(1);
 
-    await advanceBy(4_999);
+    await advanceBy(14_999);
     expect(mockedTransactionService.getStatus).toHaveBeenCalledTimes(1);
     await advanceBy(1);
     expect(mockedTransactionService.getStatus).toHaveBeenCalledTimes(2);
-    await advanceBy(50_000);
-    expect(mockedTransactionService.getStatus).toHaveBeenCalledTimes(12);
+    await advanceBy(45_000);
+    expect(mockedTransactionService.getStatus).toHaveBeenCalledTimes(5);
   });
 
-  it('transitions to fifteen-second polling after the first minute', async () => {
+  it('transitions to thirty-second polling after the first minute', async () => {
     renderPage();
     await flushAsyncWork();
     await advanceBy(60_000);
     const callsAtOneMinute = mockedTransactionService.getStatus.mock.calls.length;
 
-    await advanceBy(14_999);
+    await advanceBy(29_999);
     expect(mockedTransactionService.getStatus).toHaveBeenCalledTimes(callsAtOneMinute);
     await advanceBy(1);
     expect(mockedTransactionService.getStatus).toHaveBeenCalledTimes(callsAtOneMinute + 1);
   });
 
-  it('transitions to thirty-second polling after the third minute', async () => {
+  it('transitions to sixty-second polling after the third minute', async () => {
     renderPage();
     await flushAsyncWork();
     await advanceBy(180_000);
     const callsAtThreeMinutes = mockedTransactionService.getStatus.mock.calls.length;
 
-    await advanceBy(29_999);
+    await advanceBy(59_999);
     expect(mockedTransactionService.getStatus).toHaveBeenCalledTimes(callsAtThreeMinutes);
     await advanceBy(1);
     expect(mockedTransactionService.getStatus).toHaveBeenCalledTimes(callsAtThreeMinutes + 1);
@@ -177,7 +177,7 @@ describe('PaymentReturnPage polling', () => {
       .mockResolvedValueOnce(approvedTransaction);
     renderPage();
     await flushAsyncWork();
-    await advanceBy(5_000);
+    await advanceBy(15_000);
     await advanceBy(1);
 
     expect(mockedTransactionService.getStatus).toHaveBeenCalledTimes(2);
@@ -264,7 +264,7 @@ describe('PaymentReturnPage polling', () => {
     }
     const callsAfterVisibilityChanges = mockedTransactionService.getStatus.mock.calls.length;
 
-    await advanceBy(4_999);
+    await advanceBy(14_999);
     expect(mockedTransactionService.getStatus).toHaveBeenCalledTimes(callsAfterVisibilityChanges);
     await advanceBy(1);
     expect(mockedTransactionService.getStatus).toHaveBeenCalledTimes(
@@ -324,6 +324,29 @@ describe('PaymentReturnPage polling', () => {
     );
   });
 
+  it('shows a payment resume action when checkout returns without a payment id', async () => {
+    window.history.pushState(
+      {},
+      '',
+      `/payment-return/failure?external_reference=${externalReference}`,
+    );
+    mockedTransactionService.getStatus.mockResolvedValue({
+      ...pendingTransaction,
+      checkoutUrl: 'https://checkout.example.com',
+    });
+
+    render(<PaymentReturnPage />, { wrapper: TestQueryProvider });
+    await flushAsyncWork();
+
+    expect(screen.getByText('Pagamento não realizado')).toBeInTheDocument();
+    expect(screen.getByText(/Você voltou antes de finalizar o pagamento/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Voltar para o pagamento' })).toHaveAttribute(
+      'href',
+      'https://checkout.example.com',
+    );
+    expect(screen.getByRole('link', { name: 'Voltar ao início' })).toHaveAttribute('href', '/');
+  });
+
   it('does not allow an old cancelled request to overwrite a newer response', async () => {
     let resolveOldRequest: ((value: TransactionStatusResponse) => void) | undefined;
     mockedTransactionService.getStatus
@@ -362,7 +385,7 @@ describe('PaymentReturnPage polling', () => {
       await flushAsyncWork();
       expect(mockedTransactionService.getStatus).toHaveBeenCalledTimes(1);
 
-      await advanceBy(latencyMs + 4_999);
+      await advanceBy(latencyMs + 14_999);
       expect(mockedTransactionService.getStatus).toHaveBeenCalledTimes(1);
       await advanceBy(1);
       expect(mockedTransactionService.getStatus).toHaveBeenCalledTimes(2);
