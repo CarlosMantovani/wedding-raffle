@@ -222,7 +222,8 @@ public class TransactionServiceImpl implements TransactionService {
                 transaction.getParticipantFlagEmoji(),
                 luckyNumbers,
                 previousLuckyNumbers,
-                luckyNumbers.size() + previousLuckyNumbers.size());
+                luckyNumbers.size() + previousLuckyNumbers.size(),
+                pendingCheckoutUrl(transaction));
     }
 
     private TransactionStatusResponse toRecoveryResponse(Transaction transaction) {
@@ -237,7 +238,12 @@ public class TransactionServiceImpl implements TransactionService {
                 transaction.getParticipantFlagEmoji(),
                 luckyNumbers,
                 List.of(),
-                luckyNumbers.size());
+                luckyNumbers.size(),
+                null);
+    }
+
+    private static String pendingCheckoutUrl(Transaction transaction) {
+        return transaction.getStatus() == PaymentStatus.PENDING ? transaction.getMpCheckoutUrl() : null;
     }
 
     private void ensureDrawIsOpen() {

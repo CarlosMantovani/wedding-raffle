@@ -5,9 +5,9 @@ import { transactionService } from '../../services/transactionService';
 import type { TransactionStatusResponse } from '../../types/transaction';
 
 export const PAYMENT_POLLING_DURATION_MS = 5 * 60 * 1000;
-export const PAYMENT_POLLING_FIRST_INTERVAL_MS = 5 * 1000;
-export const PAYMENT_POLLING_SECOND_INTERVAL_MS = 15 * 1000;
-export const PAYMENT_POLLING_THIRD_INTERVAL_MS = 30 * 1000;
+export const PAYMENT_POLLING_FIRST_INTERVAL_MS = 15 * 1000;
+export const PAYMENT_POLLING_SECOND_INTERVAL_MS = 30 * 1000;
+export const PAYMENT_POLLING_THIRD_INTERVAL_MS = 60 * 1000;
 
 const FIRST_POLLING_PHASE_END_MS = 60 * 1000;
 const SECOND_POLLING_PHASE_END_MS = 3 * 60 * 1000;

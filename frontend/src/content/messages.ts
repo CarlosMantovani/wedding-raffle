@@ -9,6 +9,10 @@ export const publicMessages = {
     'Não encontramos a referência da sua compra no retorno do pagamento. Tente novamente ou entre em contato com os noivos.',
   pending:
     'Seu pagamento ainda está sendo processado. Seus números serão gerados assim que a confirmação for recebida.',
+  checkoutReturnWithoutPayment:
+    'Você voltou antes de finalizar o pagamento. Nenhum número foi gerado ainda. Para participar do sorteio, conclua o pagamento no Mercado Pago.',
+  checkoutRedirectNotice:
+    'Após concluir o pagamento no Mercado Pago, toque em "Voltar à loja" para retornar e ver seus números da sorte.',
   paymentStatusUnavailable:
     'Não foi possível confirmar o status neste momento. Seu pagamento pode continuar sendo processado e poderá ser confirmado depois.',
   paymentPollingStopped:

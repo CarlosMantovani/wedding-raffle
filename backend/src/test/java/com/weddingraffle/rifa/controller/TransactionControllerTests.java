@@ -209,7 +209,8 @@ class TransactionControllerTests {
                         "🇧🇷",
                         List.of("00001", "00002"),
                         List.of("00099"),
-                        3));
+                        3,
+                        null));
 
         mockMvc.perform(get("/transactions/external-reference-123/status").param("paymentId", "123"))
                 .andExpect(status().isOk())
@@ -233,7 +234,8 @@ class TransactionControllerTests {
                         "🇧🇷",
                         List.of("00042"),
                         List.of(),
-                        1));
+                        1,
+                        null));
 
         mockMvc.perform(post("/transactions/recovery")
                         .contentType("application/json")

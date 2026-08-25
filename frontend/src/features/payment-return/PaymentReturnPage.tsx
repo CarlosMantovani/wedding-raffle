@@ -1,4 +1,13 @@
-import { AlertTriangle, Check, Copy, Download, Gift, Home, Loader2 } from 'lucide-react';
+import {
+  AlertTriangle,
+  Check,
+  Copy,
+  CreditCard,
+  Download,
+  Gift,
+  Home,
+  Loader2,
+} from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 
@@ -22,10 +31,16 @@ function getPaymentId(searchParams: URLSearchParams) {
   );
 }
 
+function getReturnStatus(pathname: string) {
+  const parts = pathname.split('/').filter(Boolean);
+  return parts[parts.length - 1] ?? '';
+}
+
 export function PaymentReturnPage() {
   const searchParams = new URLSearchParams(window.location.search);
   const externalReference = getExternalReference(searchParams);
   const paymentId = getPaymentId(searchParams);
+  const returnStatus = getReturnStatus(window.location.pathname);
 
   const { checkStatusNow, isOnline, isVisible, pollingExpired, statusQuery } =
     usePaymentStatusPolling(externalReference, paymentId);
@@ -86,6 +101,11 @@ export function PaymentReturnPage() {
   const transaction = statusQuery.data;
   const previousLuckyNumbers = transaction.previousLuckyNumbers ?? [];
   const totalLuckyNumbers = transaction.totalLuckyNumbers ?? transaction.luckyNumbers.length;
+  const isCheckoutReturnWithoutPayment =
+    returnStatus === 'failure' &&
+    !paymentId &&
+    transaction.status === 'PENDENTE' &&
+    Boolean(transaction.checkoutUrl);
 
   if (transaction.status === 'APROVADO' && transaction.luckyNumbers.length > 0) {
     return (
@@ -186,6 +206,21 @@ export function PaymentReturnPage() {
   }
 
   if (transaction.status === 'PENDENTE') {
+    if (isCheckoutReturnWithoutPayment) {
+      return (
+        <PaymentState
+          icon={<CreditCard aria-hidden="true" className="h-10 w-10 text-terracotta" />}
+          message={publicMessages.checkoutReturnWithoutPayment}
+          primaryLink={{
+            href: transaction.checkoutUrl ?? '/',
+            icon: <CreditCard aria-hidden="true" className="h-5 w-5" />,
+            label: 'Voltar para o pagamento',
+          }}
+          title="Pagamento não realizado"
+          tone="pending"
+        />
+      );
+    }
     if (statusQuery.isError) {
       return (
         <PaymentState
@@ -384,6 +419,11 @@ interface PaymentStateProps {
   icon?: ReactNode;
   message: string;
   onCheckStatus?: () => void;
+  primaryLink?: {
+    href: string;
+    icon?: ReactNode;
+    label: string;
+  };
   recoveryCode?: string;
   title: string;
   tone: 'confirmed' | 'error' | 'neutral' | 'pending';
@@ -394,6 +434,7 @@ function PaymentState({
   icon,
   message,
   onCheckStatus,
+  primaryLink,
   recoveryCode,
   title,
   tone,
@@ -430,6 +471,15 @@ function PaymentState({
               {checking ? <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" /> : null}
               {checking ? 'Consultando status' : 'Consultar status agora'}
             </button>
+          ) : null}
+          {primaryLink ? (
+            <a
+              className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-terracotta px-5 py-3 text-sm font-semibold text-white shadow-button transition hover:bg-terracotta-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracotta"
+              href={primaryLink.href}
+            >
+              {primaryLink.icon}
+              {primaryLink.label}
+            </a>
           ) : null}
           {tone === 'error' ? (
             <a
