@@ -89,6 +89,11 @@ function renderApp(path = '/') {
   );
 }
 
+async function advancePurchaseFlowToReview(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: 'Continuar' }));
+  await user.click(screen.getByRole('button', { name: 'Revisar dados' }));
+}
+
 describe('App', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -484,6 +489,26 @@ describe('App', () => {
     expect(await screen.findAllByText('R$ 225,00')).not.toHaveLength(0);
     expect(screen.queryByText('R$ 975,00')).not.toBeInTheDocument();
 
+    await user.click(screen.getByRole('button', { name: 'Aumentar quantidade' }));
+    await waitFor(() =>
+      expect(mockedTransactionService.quote).toHaveBeenLastCalledWith({
+        name: 'Guest User',
+        phone: '11999999999',
+        quantity: 31,
+      }),
+    );
+
+    await user.click(comboButton);
+    await waitFor(() =>
+      expect(mockedTransactionService.quote).toHaveBeenLastCalledWith({
+        comboId: 4,
+        name: 'Guest User',
+        phone: '11999999999',
+        quantity: 30,
+      }),
+    );
+
+    await advancePurchaseFlowToReview(user);
     await user.click(screen.getByRole('button', { name: /Pagar com Mercado Pago/i }));
     expect(mockedTransactionService.create).toHaveBeenCalledWith(
       {
@@ -493,15 +518,6 @@ describe('App', () => {
         quantity: 30,
       },
       expect.any(String),
-    );
-
-    await user.click(screen.getByRole('button', { name: 'Aumentar quantidade' }));
-    await waitFor(() =>
-      expect(mockedTransactionService.quote).toHaveBeenLastCalledWith({
-        name: 'Guest User',
-        phone: '11999999999',
-        quantity: 31,
-      }),
     );
   });
 
@@ -526,6 +542,7 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'Continuar' }));
     await screen.findAllByText('R$ 10,00');
 
+    await advancePurchaseFlowToReview(user);
     await user.click(screen.getByRole('button', { name: /Pagar com Mercado Pago/i }));
     await waitFor(() => expect(mockedTransactionService.create).toHaveBeenCalledTimes(1));
 
@@ -540,7 +557,7 @@ describe('App', () => {
     expect(assign).toHaveBeenCalledWith('https://checkout.example.com');
   });
 
-  it('sends optional gift message trimmed from the quantity step', async () => {
+  it('sends optional gift message trimmed from the message step', async () => {
     const user = userEvent.setup();
     const assign = vi.fn();
     Object.defineProperty(window, 'location', {
@@ -560,10 +577,12 @@ describe('App', () => {
     await user.type(screen.getByLabelText('Telefone'), '(11) 99999-9999');
     await user.click(screen.getByRole('button', { name: 'Continuar' }));
     await screen.findAllByText('R$ 10,00');
+    await user.click(screen.getByRole('button', { name: 'Continuar' }));
     expect(screen.getByText('0/280')).toBeInTheDocument();
 
     await user.type(screen.getByLabelText('Mensagem para o casal (opcional)'), '  Felicidades!  ');
     expect(screen.getByText('16/280')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Revisar dados' }));
     await user.click(screen.getByRole('button', { name: /Pagar com Mercado Pago/i }));
 
     await waitFor(() => expect(mockedTransactionService.create).toHaveBeenCalledTimes(1));
@@ -600,6 +619,7 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'Continuar' }));
     await screen.findAllByText('R$ 10,00');
 
+    await advancePurchaseFlowToReview(user);
     await user.click(screen.getByRole('button', { name: /Pagar com Mercado Pago/i }));
     await screen.findByRole('alert');
     const firstKey = mockedTransactionService.create.mock.calls[0][1];
@@ -620,6 +640,7 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'Continuar' }));
     await screen.findAllByText('R$ 10,00');
 
+    await advancePurchaseFlowToReview(user);
     const payButton = screen.getByRole('button', { name: /Pagar com Mercado Pago/i });
     await user.dblClick(payButton);
 
