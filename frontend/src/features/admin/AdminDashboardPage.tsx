@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronDown, Download, Eye, EyeOff, Gift, LogOut, MessageSquareText, ReceiptText, Settings, Search, Trash2 } from 'lucide-react';
+import { ChevronDown, Download, Eye, EyeOff, Gift, LogOut, Menu, MessageSquareText, ReceiptText, Settings, Search, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
 
 import { Button } from '../../components/ui/Button';
@@ -33,6 +33,7 @@ export function AdminDashboardPage() {
   const [page, setPage] = useState(0);
   const [sort, setSort] = useState<AdminTransactionSort>('createdAt,desc');
   const [areMetricsVisible, setAreMetricsVisible] = useState(false);
+  const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false);
 
   const transactionsQuery = useQuery({
     queryKey: ['admin-transactions', submittedQueryFilter, page, sort],
@@ -76,14 +77,28 @@ export function AdminDashboardPage() {
   return (
     <main className="min-h-screen bg-cream text-charcoal">
       <header className="bg-charcoal px-6 py-4 text-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
-          <div>
-            <p className="font-serif text-2xl font-bold">
-              Presente <span className="italic text-gold">Premiado</span>
-            </p>
-            <p className="mt-1 text-xs text-white/55">Painel administrativo</p>
+        <div className="mx-auto flex max-w-6xl flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="font-serif text-2xl font-bold">
+                Presente <span className="italic text-gold">Premiado</span>
+              </p>
+              <p className="mt-1 text-xs text-white/55">Painel administrativo</p>
+            </div>
+            <button
+              aria-expanded={isAdminMenuOpen}
+              aria-label={isAdminMenuOpen ? 'Fechar menu administrativo' : 'Abrir menu administrativo'}
+              className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-white/20 text-white transition hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-gold md:hidden"
+              onClick={() => setIsAdminMenuOpen((current) => !current)}
+              type="button"
+            >
+              {isAdminMenuOpen ? <X aria-hidden="true" className="h-5 w-5" /> : <Menu aria-hidden="true" className="h-5 w-5" />}
+            </button>
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-3">
+          <nav
+            aria-label="Menu administrativo"
+            className={`${isAdminMenuOpen ? 'flex' : 'hidden'} flex-col gap-3 border-t border-white/10 pt-4 md:flex md:flex-row md:items-center md:justify-end md:border-t-0 md:pt-0`}
+          >
             <a
               className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/15"
               href="/admin/cash-payment"
@@ -120,7 +135,7 @@ export function AdminDashboardPage() {
               <LogOut aria-hidden="true" className="h-4 w-4" />
               Sair
             </button>
-          </div>
+          </nav>
         </div>
       </header>
 
