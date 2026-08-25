@@ -13,4 +13,5 @@ public record TransactionStatusResponse(
         String participantFlagEmoji,
         List<String> luckyNumbers,
         List<String> previousLuckyNumbers,
-        Integer totalLuckyNumbers) {}
+        Integer totalLuckyNumbers,
+        String checkoutUrl) {}

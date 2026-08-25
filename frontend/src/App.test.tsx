@@ -11,6 +11,7 @@ import { homeService } from './services/homeService';
 import { raffleConfigService } from './services/raffleConfigService';
 import { raffleService } from './services/raffleService';
 import { transactionService } from './services/transactionService';
+import { readRecentCheckout, saveRecentCheckout } from './utils/recentCheckout';
 
 vi.mock('./services/transactionService', () => ({
   transactionService: {
@@ -92,6 +93,12 @@ function renderApp(path = '/') {
 async function advancePurchaseFlowToReview(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('button', { name: 'Continuar' }));
   await user.click(screen.getByRole('button', { name: 'Revisar dados' }));
+}
+
+async function confirmMercadoPagoRedirect(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: /Pagar com Mercado Pago/i }));
+  expect(screen.getByText(/Após concluir o pagamento/i)).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Ir para o Mercado Pago' }));
 }
 
 describe('App', () => {
@@ -509,7 +516,7 @@ describe('App', () => {
     );
 
     await advancePurchaseFlowToReview(user);
-    await user.click(screen.getByRole('button', { name: /Pagar com Mercado Pago/i }));
+    await confirmMercadoPagoRedirect(user);
     expect(mockedTransactionService.create).toHaveBeenCalledWith(
       {
         comboId: 4,
@@ -543,7 +550,7 @@ describe('App', () => {
     await screen.findAllByText('R$ 10,00');
 
     await advancePurchaseFlowToReview(user);
-    await user.click(screen.getByRole('button', { name: /Pagar com Mercado Pago/i }));
+    await confirmMercadoPagoRedirect(user);
     await waitFor(() => expect(mockedTransactionService.create).toHaveBeenCalledTimes(1));
 
     expect(mockedTransactionService.create).toHaveBeenCalledWith(
@@ -583,7 +590,7 @@ describe('App', () => {
     await user.type(screen.getByLabelText('Mensagem para o casal (opcional)'), '  Felicidades!  ');
     expect(screen.getByText('16/280')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Revisar dados' }));
-    await user.click(screen.getByRole('button', { name: /Pagar com Mercado Pago/i }));
+    await confirmMercadoPagoRedirect(user);
 
     await waitFor(() => expect(mockedTransactionService.create).toHaveBeenCalledTimes(1));
     expect(mockedTransactionService.create).toHaveBeenCalledWith(
@@ -620,10 +627,10 @@ describe('App', () => {
     await screen.findAllByText('R$ 10,00');
 
     await advancePurchaseFlowToReview(user);
-    await user.click(screen.getByRole('button', { name: /Pagar com Mercado Pago/i }));
+    await confirmMercadoPagoRedirect(user);
     await screen.findByRole('alert');
     const firstKey = mockedTransactionService.create.mock.calls[0][1];
-    await user.click(screen.getByRole('button', { name: /Pagar com Mercado Pago/i }));
+    await user.click(screen.getByRole('button', { name: 'Ir para o Mercado Pago' }));
 
     await waitFor(() => expect(mockedTransactionService.create).toHaveBeenCalledTimes(2));
     expect(mockedTransactionService.create.mock.calls[1][1]).toBe(firstKey);
@@ -641,10 +648,102 @@ describe('App', () => {
     await screen.findAllByText('R$ 10,00');
 
     await advancePurchaseFlowToReview(user);
-    const payButton = screen.getByRole('button', { name: /Pagar com Mercado Pago/i });
-    await user.dblClick(payButton);
+    await user.click(screen.getByRole('button', { name: /Pagar com Mercado Pago/i }));
+    const confirmButton = screen.getByRole('button', { name: 'Ir para o Mercado Pago' });
+    await user.dblClick(confirmButton);
 
     expect(mockedTransactionService.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows approved recent checkout on the home page after returning with browser back', async () => {
+    saveRecentCheckout({
+      checkoutUrl: 'https://checkout.example.com',
+      externalReference: 'external-reference',
+      preferenceId: 'preference-id',
+      recoveryCode: '4821',
+    });
+    mockedTransactionService.getStatus.mockResolvedValue({
+      externalReference: 'external-reference',
+      recoveryCode: '4821',
+      luckyNumbers: ['00042'],
+      participantFlagEmoji: '🇧🇷',
+      participantFlagName: 'Brasil',
+      quantity: 1,
+      status: 'APROVADO',
+      totalAmount: '10.00',
+    });
+
+    renderApp('/');
+
+    expect(await screen.findByText('Pagamento aprovado')).toBeInTheDocument();
+    expect(screen.getByText(/compra aprovada recentemente/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Ver meus números' })).toHaveAttribute(
+      'href',
+      '/payment-return/success?external_reference=external-reference',
+    );
+    await userEvent.click(screen.getByRole('link', { name: 'Ver meus números' }));
+    expect(readRecentCheckout()?.externalReference).toBe('external-reference');
+  });
+
+  it('refreshes recent checkout when the home page is restored from browser history', async () => {
+    mockedTransactionService.getStatus.mockResolvedValue({
+      externalReference: 'external-reference',
+      recoveryCode: '4821',
+      luckyNumbers: ['00042'],
+      participantFlagEmoji: '🇧🇷',
+      participantFlagName: 'Brasil',
+      quantity: 1,
+      status: 'APROVADO',
+      totalAmount: '10.00',
+    });
+    renderApp('/');
+    expect(screen.queryByText('Pagamento aprovado')).not.toBeInTheDocument();
+
+    saveRecentCheckout({
+      checkoutUrl: 'https://checkout.example.com',
+      externalReference: 'external-reference',
+      preferenceId: 'preference-id',
+      recoveryCode: '4821',
+    });
+    window.dispatchEvent(new Event('pageshow'));
+
+    expect(await screen.findByText('Pagamento aprovado')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Ver meus números' })).toHaveAttribute(
+      'href',
+      '/payment-return/success?external_reference=external-reference',
+    );
+  });
+
+  it('shows status and payment continuation links for a pending recent checkout on the home page', async () => {
+    saveRecentCheckout({
+      checkoutUrl: 'https://checkout.example.com',
+      externalReference: 'external-reference',
+      preferenceId: 'preference-id',
+      recoveryCode: '4821',
+    });
+    mockedTransactionService.getStatus.mockResolvedValue({
+      checkoutUrl: 'https://checkout.example.com',
+      externalReference: 'external-reference',
+      recoveryCode: '4821',
+      luckyNumbers: [],
+      participantFlagEmoji: null,
+      participantFlagName: null,
+      quantity: 1,
+      status: 'PENDENTE',
+      totalAmount: '10.00',
+    });
+
+    renderApp('/');
+
+    expect(await screen.findByText('Pagamento em andamento')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Ver status' })).toHaveAttribute(
+      'href',
+      '/payment-return/pending?external_reference=external-reference',
+    );
+    expect(screen.getByRole('link', { name: 'Continuar pagamento' })).toHaveAttribute(
+      'href',
+      'https://checkout.example.com',
+    );
   });
 
   it('renders approved payment numbers from backend status', async () => {

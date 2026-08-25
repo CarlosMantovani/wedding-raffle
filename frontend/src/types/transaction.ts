@@ -63,4 +63,5 @@ export interface TransactionStatusResponse {
   luckyNumbers: string[];
   previousLuckyNumbers?: string[];
   totalLuckyNumbers?: number;
+  checkoutUrl?: string | null;
 }

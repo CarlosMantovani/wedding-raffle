@@ -14,11 +14,17 @@ import { publicMessages } from '../../content/messages';
 import { homeService } from '../../services/homeService';
 import { transactionService } from '../../services/transactionService';
 import type { RaffleResult } from '../../types/home';
-import type { RaffleComboResponse } from '../../types/transaction';
+import type { RaffleComboResponse, TransactionStatusResponse } from '../../types/transaction';
 import { isPastDateTime } from '../../utils/dateTime';
 import { formatCurrency } from '../../utils/formatters';
 import { clearIdempotencyKey, getOrCreateIdempotencyKey } from '../../utils/idempotency';
 import { formatPhoneNumber, normalizePhoneNumber } from '../../utils/phone';
+import {
+  clearRecentCheckout,
+  readRecentCheckout,
+  saveRecentCheckout,
+  type RecentCheckout,
+} from '../../utils/recentCheckout';
 import { FlagRankingPanel } from '../flag-ranking/FlagRankingPanel';
 import { CountdownPanel } from './CountdownPanel';
 import { buyerSchema, type BuyerFormData } from './schemas';
@@ -33,6 +39,10 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
   const [giftMessage, setGiftMessage] = useState('');
   const [selectedComboId, setSelectedComboId] = useState<number | null>(null);
   const [purchaseStep, setPurchaseStep] = useState<PurchaseStep>('quantity');
+  const [isCheckoutConfirmationOpen, setIsCheckoutConfirmationOpen] = useState(false);
+  const [recentCheckout, setRecentCheckout] = useState<RecentCheckout | null>(() =>
+    readRecentCheckout(),
+  );
   const [, setTick] = useState(0);
 
   const {
@@ -62,6 +72,12 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
         ...(selectedComboId === null ? {} : { comboId: selectedComboId }),
       }),
   });
+  const recentCheckoutStatusQuery = useQuery({
+    enabled: Boolean(recentCheckout),
+    queryKey: ['recent-checkout-status', recentCheckout?.externalReference],
+    queryFn: ({ signal }) =>
+      transactionService.getStatus(recentCheckout?.externalReference ?? '', undefined, signal),
+  });
 
   useEffect(() => {
     if (!scheduledDrawAt) return undefined;
@@ -70,10 +86,38 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
     return () => window.clearInterval(intervalId);
   }, [scheduledDrawAt]);
 
+  useEffect(() => {
+    const status = recentCheckoutStatusQuery.data?.status;
+    if (!recentCheckout || !status) return;
+
+    if (status !== 'PENDENTE' && status !== 'APROVADO') {
+      clearRecentCheckout(recentCheckout.externalReference);
+      setRecentCheckout(null);
+    }
+  }, [recentCheckout, recentCheckoutStatusQuery.data?.status]);
+
+  useEffect(() => {
+    const syncRecentCheckout = () => {
+      setRecentCheckout(readRecentCheckout());
+    };
+
+    window.addEventListener('focus', syncRecentCheckout);
+    window.addEventListener('pageshow', syncRecentCheckout);
+    document.addEventListener('visibilitychange', syncRecentCheckout);
+
+    return () => {
+      window.removeEventListener('focus', syncRecentCheckout);
+      window.removeEventListener('pageshow', syncRecentCheckout);
+      document.removeEventListener('visibilitychange', syncRecentCheckout);
+    };
+  }, []);
+
   const createTransactionMutation = useMutation({
     mutationFn: ({ idempotencyKey, request }: PurchaseSubmission) =>
       transactionService.create(request, idempotencyKey),
     onSuccess: (response, submission) => {
+      saveRecentCheckout(response);
+      setRecentCheckout(readRecentCheckout());
       clearIdempotencyKey(CHECKOUT_IDEMPOTENCY_ACTION, submission.idempotencyKey);
       window.location.assign(response.checkoutUrl);
     },
@@ -124,6 +168,11 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
     });
   };
 
+  const openCheckoutConfirmation = () => {
+    if (!canContinueFromQuantity || giftMessageTooLong) return;
+    setIsCheckoutConfirmationOpen(true);
+  };
+
   const currentStep: 1 | 2 | 3 | 4 = !buyer
     ? 1
     : purchaseStep === 'quantity'
@@ -167,6 +216,15 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
         ) : null}
 
         {!isDrawClosed ? <CountdownPanel scheduledDrawAt={scheduledDrawAt} /> : null}
+
+        {recentCheckout ? (
+          <RecentCheckoutNotice
+            checkout={recentCheckout}
+            isError={recentCheckoutStatusQuery.isError}
+            isLoading={recentCheckoutStatusQuery.isLoading}
+            transaction={recentCheckoutStatusQuery.data}
+          />
+        ) : null}
 
         {!isDrawClosed ? <StepProgress currentStep={currentStep} /> : null}
 
@@ -461,14 +519,48 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
               </p>
             ) : null}
 
+            {isCheckoutConfirmationOpen ? (
+              <Card className="border border-gold bg-gold/10 text-left shadow-none">
+                <h2 className="text-sm font-bold text-charcoal">Antes de ir para o pagamento</h2>
+                <p className="mt-2 text-sm leading-relaxed text-warm-gray">
+                  {publicMessages.checkoutRedirectNotice}
+                </p>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <Button
+                    onClick={() => setIsCheckoutConfirmationOpen(false)}
+                    type="button"
+                    variant="secondary"
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    isLoading={createTransactionMutation.isPending}
+                    onClick={handlePay}
+                    type="button"
+                  >
+                    Ir para o Mercado Pago
+                  </Button>
+                </div>
+              </Card>
+            ) : null}
+
             <div className="grid gap-3 sm:grid-cols-2">
-              <Button onClick={() => setPurchaseStep('message')} type="button" variant="secondary">
+              <Button
+                onClick={() => {
+                  setIsCheckoutConfirmationOpen(false);
+                  setPurchaseStep('message');
+                }}
+                type="button"
+                variant="secondary"
+              >
                 Voltar
               </Button>
               <Button
-                disabled={!canContinueFromQuantity || giftMessageTooLong}
+                disabled={
+                  !canContinueFromQuantity || giftMessageTooLong || isCheckoutConfirmationOpen
+                }
                 isLoading={createTransactionMutation.isPending}
-                onClick={handlePay}
+                onClick={openCheckoutConfirmation}
                 type="button"
               >
                 <CreditCard aria-hidden="true" className="h-5 w-5" />
@@ -506,6 +598,67 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
 interface PurchaseSubmission {
   idempotencyKey: string;
   request: BuyerFormData & { giftMessage?: string; quantity: number; comboId?: number };
+}
+
+function RecentCheckoutNotice({
+  checkout,
+  isError,
+  isLoading,
+  transaction,
+}: {
+  checkout: RecentCheckout;
+  isError: boolean;
+  isLoading: boolean;
+  transaction?: TransactionStatusResponse;
+}) {
+  const statusHref = `/payment-return/pending?external_reference=${checkout.externalReference}`;
+  const successHref = `/payment-return/success?external_reference=${checkout.externalReference}`;
+  const checkoutUrl = transaction?.checkoutUrl ?? checkout.checkoutUrl;
+
+  if (transaction?.status === 'APROVADO') {
+    return (
+      <Card className="border border-green/30 bg-white text-left shadow-none">
+        <p className="text-sm font-bold text-green">Pagamento aprovado</p>
+        <p className="mt-2 text-sm leading-relaxed text-warm-gray">
+          Encontramos uma compra aprovada recentemente. Acesse a confirmação para ver seus números
+          da sorte.
+        </p>
+        <a
+          className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-green px-5 py-3 text-sm font-semibold text-white shadow-button transition hover:bg-green-deep focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green"
+          href={successHref}
+        >
+          Ver meus números
+        </a>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="border border-gold bg-gold/10 text-left shadow-none">
+      <p className="text-sm font-bold text-charcoal">
+        {isLoading ? 'Consultando pagamento recente' : 'Pagamento em andamento'}
+      </p>
+      <p className="mt-2 text-sm leading-relaxed text-warm-gray">
+        {isError
+          ? 'Não conseguimos consultar sua compra recente agora. Você ainda pode abrir a tela de status.'
+          : 'Estamos aguardando a confirmação do seu pagamento. Se você já pagou, toque em Ver status. Se ainda não concluiu, toque em Continuar pagamento.'}
+      </p>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <a
+          className="inline-flex min-h-12 w-full items-center justify-center rounded-lg bg-green px-5 py-3 text-sm font-semibold text-white shadow-button transition hover:bg-green-deep focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green"
+          href={statusHref}
+        >
+          Ver status
+        </a>
+        <a
+          className="inline-flex min-h-12 w-full items-center justify-center rounded-lg border border-green bg-transparent px-5 py-3 text-sm font-semibold text-green transition hover:bg-ivory-deep focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green"
+          href={checkoutUrl}
+        >
+          Continuar pagamento
+        </a>
+      </div>
+    </Card>
+  );
 }
 
 function ComboCard({
