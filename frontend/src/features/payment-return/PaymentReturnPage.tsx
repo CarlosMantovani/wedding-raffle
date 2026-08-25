@@ -15,7 +15,10 @@ function getExternalReference(searchParams: URLSearchParams) {
 
 function getPaymentId(searchParams: URLSearchParams) {
   return (
-    searchParams.get('payment_id') ?? searchParams.get('collection_id') ?? searchParams.get('paymentId') ?? ''
+    searchParams.get('payment_id') ??
+    searchParams.get('collection_id') ??
+    searchParams.get('paymentId') ??
+    ''
   );
 }
 
@@ -101,19 +104,21 @@ export function PaymentReturnPage() {
             </div>
           </div>
 
-          <Card className="border border-[#EEE6DF] bg-white/90 text-center shadow-none">
-            <p className="text-xs font-bold uppercase tracking-wide text-terracotta">
-              Sua bandeira
-            </p>
-            <div className="mt-3 flex items-center justify-center gap-3">
-              <span className="grid h-14 w-14 place-items-center rounded-full bg-blush">
-                <FlagEmoji className="h-9 w-9" emoji={transaction.participantFlagEmoji} />
-              </span>
-              <span className="font-serif text-2xl font-bold text-charcoal">
-                {transaction.participantFlagName}
-              </span>
-            </div>
-          </Card>
+          {transaction.participantFlagEmoji && transaction.participantFlagName ? (
+            <Card className="border border-[#EEE6DF] bg-white/90 text-center shadow-none">
+              <p className="text-xs font-bold uppercase tracking-wide text-terracotta">
+                Sua bandeira
+              </p>
+              <div className="mt-3 flex items-center justify-center gap-3">
+                <span className="grid h-14 w-14 place-items-center rounded-full bg-blush">
+                  <FlagEmoji className="h-9 w-9" emoji={transaction.participantFlagEmoji} />
+                </span>
+                <span className="font-serif text-2xl font-bold text-charcoal">
+                  {transaction.participantFlagName}
+                </span>
+              </div>
+            </Card>
+          ) : null}
 
           <Card className="border border-gold/30 text-center">
             {previousLuckyNumbers.length > 0 ? (

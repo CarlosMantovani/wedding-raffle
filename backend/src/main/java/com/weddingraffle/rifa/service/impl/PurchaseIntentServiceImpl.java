@@ -156,7 +156,6 @@ public class PurchaseIntentServiceImpl implements PurchaseIntentService {
                 externalReference);
         transaction.assignPreference(intent.getMpPreferenceId(), intent.getMpCheckoutUrl(), intent.getMpCollectorId());
         transaction.assignRaffleCombo(intent.getRaffleCombo());
-        transaction.assignParticipantFlag(participantFlagService.resolveForPhone(intent.getParticipantPhone()));
         transaction.assignRecoveryCode(recoveryCodeService.resolveForPhone(intent.getParticipantPhone()));
         return transactionRepository.save(transaction);
     }

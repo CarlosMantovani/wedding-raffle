@@ -94,13 +94,13 @@ public class Transaction {
 
     private UUID paymentReconciliationLeaseToken;
 
-    @Column(nullable = false, length = 50)
+    @Column(length = 50)
     private String participantFlagCode;
 
-    @Column(nullable = false, length = 100)
+    @Column(length = 100)
     private String participantFlagName;
 
-    @Column(nullable = false, length = 20)
+    @Column(length = 20)
     private String participantFlagEmoji;
 
     @Column(insertable = false, updatable = false)

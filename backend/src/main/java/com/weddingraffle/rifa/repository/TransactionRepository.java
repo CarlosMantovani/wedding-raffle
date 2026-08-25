@@ -94,7 +94,10 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
 
     Optional<Transaction> findFirstByPhoneOrderByCreatedAtAsc(String phone);
 
-    @Query("select distinct raffleTransaction.participantFlagCode from RaffleTransaction raffleTransaction")
+    Optional<Transaction> findFirstByPhoneAndParticipantFlagCodeIsNotNullOrderByCreatedAtAsc(String phone);
+
+    @Query(
+            "select distinct raffleTransaction.participantFlagCode from RaffleTransaction raffleTransaction where raffleTransaction.participantFlagCode is not null")
     List<String> findDistinctParticipantFlagCodes();
 
     @Query(
