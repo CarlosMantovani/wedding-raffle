@@ -40,6 +40,7 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
   const [selectedComboId, setSelectedComboId] = useState<number | null>(null);
   const [purchaseStep, setPurchaseStep] = useState<PurchaseStep>('quantity');
   const [isCheckoutConfirmationOpen, setIsCheckoutConfirmationOpen] = useState(false);
+  const [isRedirectingToCheckout, setIsRedirectingToCheckout] = useState(false);
   const [recentCheckout, setRecentCheckout] = useState<RecentCheckout | null>(() =>
     readRecentCheckout(),
   );
@@ -64,13 +65,13 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
   const quoteQuery = useQuery({
     enabled: Boolean(buyer) && !isDrawClosed,
     placeholderData: (previousData) => previousData,
-    queryKey: ['transaction-quote', buyer, quantity, selectedComboId],
+    queryKey: ['transaction-pricing', buyer],
     queryFn: () =>
       transactionService.quote({
         ...buyer!,
-        quantity,
-        ...(selectedComboId === null ? {} : { comboId: selectedComboId }),
+        quantity: 1,
       }),
+    staleTime: 5 * 60 * 1000,
   });
   const recentCheckoutStatusQuery = useQuery({
     enabled: Boolean(recentCheckout),
@@ -88,12 +89,14 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
 
   useEffect(() => {
     const status = recentCheckoutStatusQuery.data?.status;
-    if (!recentCheckout || !status) return;
+    if (!recentCheckout || !status) return undefined;
 
     if (status !== 'PENDENTE' && status !== 'APROVADO') {
       clearRecentCheckout(recentCheckout.externalReference);
-      setRecentCheckout(null);
+      const timeoutId = window.setTimeout(() => setRecentCheckout(null), 0);
+      return () => window.clearTimeout(timeoutId);
     }
+    return undefined;
   }, [recentCheckout, recentCheckoutStatusQuery.data?.status]);
 
   useEffect(() => {
@@ -116,6 +119,7 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
     mutationFn: ({ idempotencyKey, request }: PurchaseSubmission) =>
       transactionService.create(request, idempotencyKey),
     onSuccess: (response, submission) => {
+      setIsRedirectingToCheckout(true);
       saveRecentCheckout(response);
       setRecentCheckout(readRecentCheckout());
       clearIdempotencyKey(CHECKOUT_IDEMPOTENCY_ACTION, submission.idempotencyKey);
@@ -153,14 +157,15 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
   };
 
   const handlePay = () => {
-    if (!buyer || isDrawClosed || createTransactionMutation.isPending) return;
+    if (!buyer || isDrawClosed || createTransactionMutation.isPending || isRedirectingToCheckout)
+      return;
     const trimmedGiftMessage = giftMessage.trim();
     if (trimmedGiftMessage.length > GIFT_MESSAGE_MAX_LENGTH) return;
     const request = {
       ...buyer,
       ...(trimmedGiftMessage ? { giftMessage: trimmedGiftMessage } : {}),
       quantity,
-      ...(selectedComboId === null ? {} : { comboId: selectedComboId }),
+      ...(selectedCombo ? { comboId: selectedCombo.id } : {}),
     };
     createTransactionMutation.mutate({
       idempotencyKey: getOrCreateIdempotencyKey(CHECKOUT_IDEMPOTENCY_ACTION, request),
@@ -181,19 +186,19 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
         ? 3
         : 4;
   const unitPrice = quoteQuery.data?.unitPrice;
-  const totalAmount = quoteQuery.data?.totalAmount;
-  const quoteMatchesSelection =
-    quoteQuery.data?.quantity === quantity &&
-    (quoteQuery.data?.comboId ?? null) === selectedComboId;
-  const selectedCombo = quoteMatchesSelection
-    ? quoteQuery.data?.availableCombos.find((combo) => combo.id === selectedComboId)
-    : undefined;
-  const canContinueFromQuantity =
-    Boolean(quoteQuery.data) && !quoteQuery.isFetching && quoteMatchesSelection;
+  const availableCombos = quoteQuery.data?.availableCombos ?? [];
+  const selectedCombo =
+    availableCombos.find((combo) => combo.id === selectedComboId && combo.quantity === quantity) ??
+    availableCombos.find((combo) => combo.quantity === quantity);
+  const totalAmount =
+    selectedCombo?.price ?? (unitPrice ? multiplyMoney(unitPrice, quantity) : undefined);
+  const canContinueFromQuantity = Boolean(totalAmount) && !quoteQuery.isLoading;
   const giftMessageTooLong = giftMessage.trim().length > GIFT_MESSAGE_MAX_LENGTH;
+  const isCheckoutBusy = createTransactionMutation.isPending || isRedirectingToCheckout;
 
   return (
     <main className="min-h-screen bg-cream px-6 pb-16 pt-10 text-charcoal">
+      {isRedirectingToCheckout ? <CheckoutRedirectOverlay /> : null}
       <div className="mx-auto flex w-full max-w-[480px] flex-col gap-7">
         <header className="text-center">
           <BrandMark />
@@ -217,7 +222,7 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
 
         {!isDrawClosed ? <CountdownPanel scheduledDrawAt={scheduledDrawAt} /> : null}
 
-        {recentCheckout ? (
+        {recentCheckout && !isRedirectingToCheckout ? (
           <RecentCheckoutNotice
             checkout={recentCheckout}
             isError={recentCheckoutStatusQuery.isError}
@@ -339,7 +344,7 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
               </div>
             </Card>
 
-            {quoteQuery.data?.availableCombos.length ? (
+            {availableCombos.length ? (
               <section aria-labelledby="combo-title" className="space-y-3">
                 <div className="text-center">
                   <h2 className="text-sm font-bold text-charcoal" id="combo-title">
@@ -348,10 +353,10 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
                   <p className="mt-1 text-xs text-warm-gray">Mais números com preço promocional</p>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  {quoteQuery.data.availableCombos.map((combo) => (
-                    <ComboCard
-                      combo={combo}
-                      isSelected={combo.id === selectedComboId}
+                  {availableCombos.map((combo) => (
+                      <ComboCard
+                        combo={combo}
+                      isSelected={combo.id === selectedCombo?.id}
                       key={combo.id}
                       onSelect={() => selectCombo(combo)}
                     />
@@ -371,7 +376,7 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
                 <div className="flex items-center justify-between gap-4">
                   <dt className="text-sm text-warm-gray">Valor unitário</dt>
                   <dd className="text-sm font-semibold">
-                    {quoteQuery.isFetching || !quoteMatchesSelection
+                    {quoteQuery.isLoading
                       ? 'Atualizando...'
                       : unitPrice
                         ? formatCurrency(unitPrice)
@@ -398,7 +403,7 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
                 <div className="flex items-center justify-between gap-4">
                   <dt className="text-base font-bold">Total</dt>
                   <dd className="font-serif text-3xl font-bold text-green">
-                    {quoteQuery.isFetching || !quoteMatchesSelection
+                    {quoteQuery.isLoading
                       ? '...'
                       : totalAmount
                         ? formatCurrency(totalAmount)
@@ -491,7 +496,7 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
                 <div className="flex items-center justify-between gap-4">
                   <dt className="text-base font-bold">Total</dt>
                   <dd className="font-serif text-3xl font-bold text-green">
-                    {quoteQuery.isFetching || !quoteMatchesSelection
+                    {quoteQuery.isLoading
                       ? '...'
                       : totalAmount
                         ? formatCurrency(totalAmount)
@@ -534,7 +539,8 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
                     Cancelar
                   </Button>
                   <Button
-                    isLoading={createTransactionMutation.isPending}
+                    disabled={isCheckoutBusy}
+                    isLoading={isCheckoutBusy}
                     onClick={handlePay}
                     type="button"
                   >
@@ -557,9 +563,12 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
               </Button>
               <Button
                 disabled={
-                  !canContinueFromQuantity || giftMessageTooLong || isCheckoutConfirmationOpen
+                  !canContinueFromQuantity ||
+                  giftMessageTooLong ||
+                  isCheckoutConfirmationOpen ||
+                  isCheckoutBusy
                 }
-                isLoading={createTransactionMutation.isPending}
+                isLoading={isCheckoutBusy}
                 onClick={openCheckoutConfirmation}
                 type="button"
               >
@@ -593,6 +602,40 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
       </div>
     </main>
   );
+}
+
+function CheckoutRedirectOverlay() {
+  return (
+    <div
+      aria-busy="true"
+      aria-live="polite"
+      className="fixed inset-0 z-50 grid place-items-center bg-cream/95 px-6 backdrop-blur-sm"
+      role="status"
+    >
+      <Card className="w-full max-w-sm border border-gold/40 bg-white text-center shadow-xl">
+        <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-gold/20 shadow-button">
+          <div
+            aria-label="Carregando redirecionamento"
+            className="h-8 w-8 animate-spin rounded-full border-4 border-gold/30 border-t-gold"
+            role="progressbar"
+          />
+        </div>
+        <p className="mt-5 font-serif text-xl font-bold text-charcoal">
+          Redirecionando para o Mercado Pago
+        </p>
+        <div className="mt-5 space-y-2">
+          <div className="mx-auto h-3 w-4/5 animate-pulse rounded-full bg-line" />
+          <div className="mx-auto h-3 w-2/3 animate-pulse rounded-full bg-line" />
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function multiplyMoney(amount: string | number, quantity: number): string {
+  const [whole = '0', decimals = ''] = String(amount).split('.');
+  const cents = Number(whole) * 100 + Number(decimals.padEnd(2, '0').slice(0, 2));
+  return ((cents * quantity) / 100).toFixed(2);
 }
 
 interface PurchaseSubmission {

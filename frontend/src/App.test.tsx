@@ -384,27 +384,17 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: 'Continuar' })).toBeEnabled();
   });
 
-  it('shows quote values when quantity changes', async () => {
+  it('calculates quote values locally when quantity changes', async () => {
     const user = userEvent.setup();
-    mockedTransactionService.quote
-      .mockResolvedValueOnce({
-        name: 'Guest User',
-        phone: '11999999999',
-        quantity: 1,
-        unitPrice: '10.00',
-        totalAmount: '10.00',
-        comboId: null,
-        availableCombos: [],
-      })
-      .mockResolvedValueOnce({
-        name: 'Guest User',
-        phone: '11999999999',
-        quantity: 2,
-        unitPrice: '10.00',
-        totalAmount: '20.00',
-        comboId: null,
-        availableCombos: [],
-      });
+    mockedTransactionService.quote.mockResolvedValue({
+      name: 'Guest User',
+      phone: '11999999999',
+      quantity: 1,
+      unitPrice: 10 as unknown as string,
+      totalAmount: 10 as unknown as string,
+      comboId: null,
+      availableCombos: [],
+    });
 
     renderApp('/buy');
 
@@ -416,9 +406,15 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'Aumentar quantidade' }));
 
     expect(await screen.findByText('R$ 20,00')).toBeInTheDocument();
+    expect(mockedTransactionService.quote).toHaveBeenCalledTimes(1);
+    expect(mockedTransactionService.quote).toHaveBeenLastCalledWith({
+      name: 'Guest User',
+      phone: '11999999999',
+      quantity: 1,
+    });
   });
 
-  it('accepts a manually typed quantity and requests the regular backend quote', async () => {
+  it('accepts a manually typed quantity and keeps the initial backend quote', async () => {
     const user = userEvent.setup();
     mockedTransactionService.quote.mockImplementation(async (request) => ({
       availableCombos: [],
@@ -438,31 +434,31 @@ describe('App', () => {
     await user.click(quantityInput);
     await user.keyboard('17');
 
-    await waitFor(() =>
-      expect(mockedTransactionService.quote).toHaveBeenLastCalledWith({
-        name: 'Guest User',
-        phone: '11999999999',
-        quantity: 17,
-      }),
-    );
+    expect(await screen.findByText('R$ 850,00')).toBeInTheDocument();
+    expect(mockedTransactionService.quote).toHaveBeenCalledTimes(1);
+    expect(mockedTransactionService.quote).toHaveBeenLastCalledWith({
+      name: 'Guest User',
+      phone: '11999999999',
+      quantity: 1,
+    });
     expect(quantityInput).toHaveValue(17);
   });
 
-  it('selects backend-priced combo, shows correct savings, and clears it after manual change', async () => {
+  it('applies backend-priced combo when selector reaches combo quantity', async () => {
     const user = userEvent.setup();
     const combos = [
       {
         active: true,
-        averagePricePerNumber: '42.50',
-        discountPercent: '15.00',
+        averagePricePerNumber: '40.00',
+        discountPercent: '20.00',
         displayOrder: 4,
         highlightBestValue: true,
         highlightMostChosen: false,
         id: 4,
-        price: '1275.00',
-        quantity: 30,
-        regularPrice: '1500.00',
-        savingsAmount: '225.00',
+        price: '80.00',
+        quantity: 2,
+        regularPrice: '100.00',
+        savingsAmount: '20.00',
       },
     ];
     mockedTransactionService.quote.mockImplementation(async (request) => ({
@@ -481,40 +477,22 @@ describe('App', () => {
     await user.type(screen.getByLabelText('Telefone'), '11999999999');
     await user.click(screen.getByRole('button', { name: 'Continuar' }));
 
-    const comboButton = await screen.findByRole('button', { name: /30 números/i });
+    const comboButton = await screen.findByRole('button', { name: /2 números/i });
     expect(comboButton).toHaveTextContent('Melhor valor');
-    await user.click(comboButton);
+    await user.click(screen.getByRole('button', { name: 'Aumentar quantidade' }));
 
-    await waitFor(() =>
-      expect(mockedTransactionService.quote).toHaveBeenLastCalledWith({
-        comboId: 4,
-        name: 'Guest User',
-        phone: '11999999999',
-        quantity: 30,
-      }),
-    );
-    expect(await screen.findAllByText('R$ 225,00')).not.toHaveLength(0);
-    expect(screen.queryByText('R$ 975,00')).not.toBeInTheDocument();
+    expect(comboButton).toHaveAttribute('aria-pressed', 'true');
+    expect(await screen.findAllByText('R$ 20,00')).not.toHaveLength(0);
+    expect(await screen.findAllByText('R$ 80,00')).not.toHaveLength(0);
+    expect(mockedTransactionService.quote).toHaveBeenCalledTimes(1);
 
     await user.click(screen.getByRole('button', { name: 'Aumentar quantidade' }));
-    await waitFor(() =>
-      expect(mockedTransactionService.quote).toHaveBeenLastCalledWith({
-        name: 'Guest User',
-        phone: '11999999999',
-        quantity: 31,
-      }),
-    );
+    expect(comboButton).toHaveAttribute('aria-pressed', 'false');
+    expect(await screen.findByText('R$ 150,00')).toBeInTheDocument();
+    expect(mockedTransactionService.quote).toHaveBeenCalledTimes(1);
 
-    await user.click(comboButton);
-    await waitFor(() =>
-      expect(mockedTransactionService.quote).toHaveBeenLastCalledWith({
-        comboId: 4,
-        name: 'Guest User',
-        phone: '11999999999',
-        quantity: 30,
-      }),
-    );
-
+    await user.click(screen.getByRole('button', { name: 'Diminuir quantidade' }));
+    expect(comboButton).toHaveAttribute('aria-pressed', 'true');
     await advancePurchaseFlowToReview(user);
     await confirmMercadoPagoRedirect(user);
     expect(mockedTransactionService.create).toHaveBeenCalledWith(
@@ -522,7 +500,7 @@ describe('App', () => {
         comboId: 4,
         name: 'Guest User',
         phone: '11999999999',
-        quantity: 30,
+        quantity: 2,
       },
       expect.any(String),
     );
@@ -553,6 +531,9 @@ describe('App', () => {
     await confirmMercadoPagoRedirect(user);
     await waitFor(() => expect(mockedTransactionService.create).toHaveBeenCalledTimes(1));
 
+    expect(screen.getByRole('status')).toHaveTextContent('Redirecionando para o Mercado Pago');
+    expect(screen.getByRole('progressbar', { name: 'Carregando redirecionamento' })).toBeInTheDocument();
+    expect(screen.queryByText('Pagamento em andamento')).not.toBeInTheDocument();
     expect(mockedTransactionService.create).toHaveBeenCalledWith(
       {
         name: 'Guest User',
