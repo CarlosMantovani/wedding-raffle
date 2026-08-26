@@ -384,27 +384,17 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: 'Continuar' })).toBeEnabled();
   });
 
-  it('shows quote values when quantity changes', async () => {
+  it('calculates quote values locally when quantity changes', async () => {
     const user = userEvent.setup();
-    mockedTransactionService.quote
-      .mockResolvedValueOnce({
-        name: 'Guest User',
-        phone: '11999999999',
-        quantity: 1,
-        unitPrice: '10.00',
-        totalAmount: '10.00',
-        comboId: null,
-        availableCombos: [],
-      })
-      .mockResolvedValueOnce({
-        name: 'Guest User',
-        phone: '11999999999',
-        quantity: 2,
-        unitPrice: '10.00',
-        totalAmount: '20.00',
-        comboId: null,
-        availableCombos: [],
-      });
+    mockedTransactionService.quote.mockResolvedValue({
+      name: 'Guest User',
+      phone: '11999999999',
+      quantity: 1,
+      unitPrice: 10 as unknown as string,
+      totalAmount: 10 as unknown as string,
+      comboId: null,
+      availableCombos: [],
+    });
 
     renderApp('/buy');
 
@@ -416,9 +406,15 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'Aumentar quantidade' }));
 
     expect(await screen.findByText('R$ 20,00')).toBeInTheDocument();
+    expect(mockedTransactionService.quote).toHaveBeenCalledTimes(1);
+    expect(mockedTransactionService.quote).toHaveBeenLastCalledWith({
+      name: 'Guest User',
+      phone: '11999999999',
+      quantity: 1,
+    });
   });
 
-  it('accepts a manually typed quantity and requests the regular backend quote', async () => {
+  it('accepts a manually typed quantity and keeps the initial backend quote', async () => {
     const user = userEvent.setup();
     mockedTransactionService.quote.mockImplementation(async (request) => ({
       availableCombos: [],
@@ -438,13 +434,13 @@ describe('App', () => {
     await user.click(quantityInput);
     await user.keyboard('17');
 
-    await waitFor(() =>
-      expect(mockedTransactionService.quote).toHaveBeenLastCalledWith({
-        name: 'Guest User',
-        phone: '11999999999',
-        quantity: 17,
-      }),
-    );
+    expect(await screen.findByText('R$ 850,00')).toBeInTheDocument();
+    expect(mockedTransactionService.quote).toHaveBeenCalledTimes(1);
+    expect(mockedTransactionService.quote).toHaveBeenLastCalledWith({
+      name: 'Guest User',
+      phone: '11999999999',
+      quantity: 1,
+    });
     expect(quantityInput).toHaveValue(17);
   });
 
@@ -485,35 +481,17 @@ describe('App', () => {
     expect(comboButton).toHaveTextContent('Melhor valor');
     await user.click(comboButton);
 
-    await waitFor(() =>
-      expect(mockedTransactionService.quote).toHaveBeenLastCalledWith({
-        comboId: 4,
-        name: 'Guest User',
-        phone: '11999999999',
-        quantity: 30,
-      }),
-    );
     expect(await screen.findAllByText('R$ 225,00')).not.toHaveLength(0);
     expect(screen.queryByText('R$ 975,00')).not.toBeInTheDocument();
+    expect(mockedTransactionService.quote).toHaveBeenCalledTimes(1);
 
     await user.click(screen.getByRole('button', { name: 'Aumentar quantidade' }));
-    await waitFor(() =>
-      expect(mockedTransactionService.quote).toHaveBeenLastCalledWith({
-        name: 'Guest User',
-        phone: '11999999999',
-        quantity: 31,
-      }),
-    );
+    expect(await screen.findByText('R$ 1.550,00')).toBeInTheDocument();
+    expect(mockedTransactionService.quote).toHaveBeenCalledTimes(1);
 
     await user.click(comboButton);
-    await waitFor(() =>
-      expect(mockedTransactionService.quote).toHaveBeenLastCalledWith({
-        comboId: 4,
-        name: 'Guest User',
-        phone: '11999999999',
-        quantity: 30,
-      }),
-    );
+    expect(await screen.findAllByText('R$ 1.275,00')).not.toHaveLength(0);
+    expect(mockedTransactionService.quote).toHaveBeenCalledTimes(1);
 
     await advancePurchaseFlowToReview(user);
     await confirmMercadoPagoRedirect(user);
