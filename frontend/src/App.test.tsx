@@ -308,7 +308,7 @@ describe('App', () => {
     }
   });
 
-  it('shows draw closed and blocks public purchase when scheduled draw has passed', async () => {
+  it('keeps public purchase open with final moments message when scheduled draw has passed without result', async () => {
     mockedHomeService.getSummary.mockResolvedValue({
       scheduledDrawAt: '2026-08-01T02:00:00Z',
       raffleResult: null,
@@ -317,11 +317,12 @@ describe('App', () => {
 
     renderApp('/buy');
 
-    expect(await screen.findAllByText('Sorteio encerrado')).toHaveLength(1);
+    expect(await screen.findAllByText('Últimos instantes')).toHaveLength(2);
     expect(
-      screen.getByText('Sorteio encerrado. Não é mais possível comprar números.'),
+      screen.getByText(/Você ainda pode garantir seus números até o resultado ser divulgado/),
     ).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Continuar' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Continuar' })).toBeInTheDocument();
+    expect(screen.queryByText('Sorteio encerrado. Não é mais possível comprar números.')).not.toBeInTheDocument();
     expect(mockedTransactionService.quote).not.toHaveBeenCalled();
   });
 
@@ -347,7 +348,7 @@ describe('App', () => {
     expect(screen.getByRole('img', { name: '🇧🇷' })).toBeInTheDocument();
   });
 
-  it('does not render the raffle winner before the scheduled draw is closed', async () => {
+  it('renders the raffle winner when result exists even before scheduled draw time', async () => {
     mockedHomeService.getSummary.mockResolvedValue({
       scheduledDrawAt: '2026-09-06T02:00:00Z',
       raffleResult: {
@@ -362,9 +363,9 @@ describe('App', () => {
 
     renderApp();
 
-    expect(await screen.findByRole('button', { name: 'Continuar' })).toBeInTheDocument();
-    expect(screen.queryByText('Número ganhador')).not.toBeInTheDocument();
-    expect(screen.queryByText('00042')).not.toBeInTheDocument();
+    expect(await screen.findByText('Número ganhador')).toBeInTheDocument();
+    expect(screen.getByText('00042')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Continuar' })).not.toBeInTheDocument();
   });
 
   it('requires name and phone before the quantity step', async () => {

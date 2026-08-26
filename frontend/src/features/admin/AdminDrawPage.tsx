@@ -8,8 +8,9 @@ import { raffleService } from '../../services/raffleService';
 import type { ApiError } from '../../types/api';
 import type { RaffleCandidateResponse, RaffleDrawResponse } from '../../types/admin';
 
-const REVEAL_DURATION_MS = 5500;
-const REVEAL_TICK_MS = 75;
+const REVEAL_DURATION_MS = 10000;
+const REVEAL_INITIAL_TICK_MS = 90;
+const REVEAL_FINAL_TICK_MS = 450;
 
 export function AdminDrawPage() {
   const [isConfirming, setIsConfirming] = useState(false);
@@ -183,16 +184,26 @@ function runRevealAnimation(candidates: RaffleCandidateResponse[], setCandidate:
 
   return new Promise<void>((resolve) => {
     let index = 0;
+    const startedAt = performance.now();
     setCandidate(candidates[index]);
 
-    const intervalId = window.setInterval(() => {
+    const scheduleNextCandidate = () => {
+      const elapsed = performance.now() - startedAt;
+      const progress = Math.min(elapsed / REVEAL_DURATION_MS, 1);
+      if (progress >= 1) {
+        resolve();
+        return;
+      }
+
       index = (index + 1) % candidates.length;
       setCandidate(candidates[index]);
-    }, REVEAL_TICK_MS);
 
-    window.setTimeout(() => {
-      window.clearInterval(intervalId);
-      resolve();
-    }, REVEAL_DURATION_MS);
+      const easedProgress = progress ** 2;
+      const nextTick =
+        REVEAL_INITIAL_TICK_MS + (REVEAL_FINAL_TICK_MS - REVEAL_INITIAL_TICK_MS) * easedProgress;
+      window.setTimeout(scheduleNextCandidate, nextTick);
+    };
+
+    window.setTimeout(scheduleNextCandidate, REVEAL_INITIAL_TICK_MS);
   });
 }

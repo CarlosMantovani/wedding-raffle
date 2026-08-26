@@ -26,7 +26,7 @@ export function CountdownPanel({ scheduledDrawAt }: { scheduledDrawAt: string | 
     return (
       <section className="rounded-lg bg-green-deep p-6 text-center text-white">
         <p className="text-xs font-bold uppercase tracking-wide text-gold">Sorteio</p>
-        <h2 className="mt-2 font-serif text-2xl font-bold">Sorteio encerrado</h2>
+        <h2 className="mt-2 font-serif text-2xl font-bold">Últimos instantes</h2>
         <p className="mt-2 text-xs font-semibold text-white/70">Sorteio em {formatDateTime(scheduledDrawAt)}</p>
       </section>
     );
