@@ -17,8 +17,8 @@ export function BrandMark() {
         />
         <span className="max-[364px]:block">José Carlos</span>
       </h1>
-      <p className="mt-2 font-serif text-2xl font-bold leading-tight text-charcoal">
-        Presente <span className="italic text-gold">Premiado</span>
+      <p className="block text-base font-semibold italic m-2 text-inkSoft " >
+          Sua sorte, nossa Lua de Mel!
       </p>
     </div>
   );
