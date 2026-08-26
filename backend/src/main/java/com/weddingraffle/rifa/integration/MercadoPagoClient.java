@@ -32,6 +32,7 @@ import org.springframework.util.StringUtils;
 public class MercadoPagoClient implements PaymentProviderClient {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(MercadoPagoClient.class);
+    private static final String FALLBACK_EMAIL_DOMAIN = "@wedding-raffle.com";
 
     private static final String COMBO_ITEM_TITLE = "Combo %d números da sorte";
     private static final String ITEM_TITLE = "Número(s) da sorte";
@@ -199,9 +200,9 @@ public class MercadoPagoClient implements PaymentProviderClient {
                 .pending(appProperties.mercadoPago().pendingUrl())
                 .build();
 
-        PreferencePayerRequest payer = StringUtils.hasText(request.email())
-                ? PreferencePayerRequest.builder().email(request.email()).build()
-                : null;
+        PreferencePayerRequest payer = PreferencePayerRequest.builder()
+                .email(resolvePayerEmail(request.phone(), request.email()))
+                .build();
 
         PreferenceRequest.PreferenceRequestBuilder builder = PreferenceRequest.builder()
                 .items(List.of(item))
@@ -209,10 +210,15 @@ public class MercadoPagoClient implements PaymentProviderClient {
                 .notificationUrl(appProperties.mercadoPago().webhookUrl())
                 .externalReference(request.externalReference());
 
-        if (payer != null) {
-            builder.payer(payer);
-        }
+        builder.payer(payer);
 
         return builder.build();
+    }
+
+    private static String resolvePayerEmail(String phone, String email) {
+        if (StringUtils.hasText(email)) {
+            return email;
+        }
+        return phone.replaceAll("\\D", "") + FALLBACK_EMAIL_DOMAIN;
     }
 }

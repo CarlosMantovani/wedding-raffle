@@ -4,6 +4,7 @@ export type PaymentStatus =
 export interface TransactionQuoteRequest {
   name: string;
   phone: string;
+  email?: string;
   quantity: number;
   comboId?: number;
 }
@@ -35,6 +36,7 @@ export interface TransactionQuoteResponse {
 export interface TransactionCreateRequest {
   name: string;
   phone: string;
+  email?: string;
   giftMessage?: string;
   quantity: number;
   comboId?: number;

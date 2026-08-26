@@ -90,9 +90,10 @@ public class TransactionServiceImpl implements TransactionService {
         String normalizedIdempotencyKey = purchaseRequestHasher.normalizeIdempotencyKey(idempotencyKey);
         String name = ParticipantNormalizer.normalizeName(request.name());
         String phone = ParticipantNormalizer.normalizePhone(request.phone());
+        String email = ParticipantNormalizer.normalizeEmail(request.email());
         String giftMessage = ParticipantNormalizer.normalizeGiftMessage(request.giftMessage());
         String requestHash =
-                purchaseRequestHasher.online(name, phone, giftMessage, request.quantity(), request.comboId());
+                purchaseRequestHasher.online(name, phone, email, giftMessage, request.quantity(), request.comboId());
 
         OnlinePurchaseAttempt attempt = purchaseIntentService
                 .findOnline(normalizedIdempotencyKey, requestHash)
@@ -101,6 +102,7 @@ public class TransactionServiceImpl implements TransactionService {
                         requestHash,
                         name,
                         phone,
+                        email,
                         giftMessage,
                         request.quantity(),
                         request.comboId()));
@@ -121,6 +123,7 @@ public class TransactionServiceImpl implements TransactionService {
             String requestHash,
             String name,
             String phone,
+            String email,
             String giftMessage,
             int quantity,
             Long comboId) {
@@ -128,7 +131,7 @@ public class TransactionServiceImpl implements TransactionService {
         PurchasePrice purchasePrice = rafflePricingService.calculate(quantity, comboId);
         try {
             return purchaseIntentService.prepareOnline(
-                    idempotencyKey, requestHash, name, phone, giftMessage, quantity, purchasePrice);
+                    idempotencyKey, requestHash, name, phone, email, giftMessage, quantity, purchasePrice);
         } catch (DataIntegrityViolationException exception) {
             return purchaseIntentService.findOnline(idempotencyKey, requestHash).orElseThrow(() -> exception);
         }

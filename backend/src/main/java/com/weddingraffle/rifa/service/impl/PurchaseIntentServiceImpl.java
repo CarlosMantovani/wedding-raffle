@@ -78,6 +78,7 @@ public class PurchaseIntentServiceImpl implements PurchaseIntentService {
             String requestHash,
             String name,
             String phone,
+            String email,
             String giftMessage,
             int quantity,
             PurchasePrice purchasePrice) {
@@ -92,7 +93,7 @@ public class PurchaseIntentServiceImpl implements PurchaseIntentService {
         intent.captureOnlineRequest(
                 name,
                 phone,
-                null,
+                email,
                 giftMessage,
                 quantity,
                 purchasePrice.unitPrice(),
@@ -249,6 +250,7 @@ public class PurchaseIntentServiceImpl implements PurchaseIntentService {
                 : null;
         CheckoutPreferenceRequest preferenceRequest = new CheckoutPreferenceRequest(
                 intent.getParticipantName(),
+                intent.getParticipantPhone(),
                 intent.getParticipantEmail(),
                 intent.getQuantity(),
                 intent.getUnitPrice(),
