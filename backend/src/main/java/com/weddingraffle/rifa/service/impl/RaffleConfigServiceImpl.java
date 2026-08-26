@@ -5,6 +5,7 @@ import com.weddingraffle.rifa.dto.RaffleConfigResponse;
 import com.weddingraffle.rifa.entity.RaffleConfig;
 import com.weddingraffle.rifa.exception.ResourceNotFoundException;
 import com.weddingraffle.rifa.repository.RaffleConfigRepository;
+import com.weddingraffle.rifa.repository.RaffleDrawRepository;
 import com.weddingraffle.rifa.service.RaffleComboService;
 import com.weddingraffle.rifa.service.RaffleConfigService;
 import jakarta.persistence.EntityManager;
@@ -17,14 +18,17 @@ import org.springframework.transaction.annotation.Transactional;
 public class RaffleConfigServiceImpl implements RaffleConfigService {
 
     private final RaffleConfigRepository raffleConfigRepository;
+    private final RaffleDrawRepository raffleDrawRepository;
     private final RaffleComboService raffleComboService;
     private final EntityManager entityManager;
 
     public RaffleConfigServiceImpl(
             RaffleConfigRepository raffleConfigRepository,
+            RaffleDrawRepository raffleDrawRepository,
             RaffleComboService raffleComboService,
             EntityManager entityManager) {
         this.raffleConfigRepository = raffleConfigRepository;
+        this.raffleDrawRepository = raffleDrawRepository;
         this.raffleComboService = raffleComboService;
         this.entityManager = entityManager;
     }
@@ -38,8 +42,7 @@ public class RaffleConfigServiceImpl implements RaffleConfigService {
     @Override
     @Transactional(readOnly = true)
     public boolean isDrawClosed() {
-        OffsetDateTime scheduledDrawAt = getCurrentConfig().getScheduledDrawAt();
-        return scheduledDrawAt != null && !scheduledDrawAt.isAfter(OffsetDateTime.now());
+        return raffleDrawRepository.findFirstByOrderByIdAsc().isPresent();
     }
 
     @Override
