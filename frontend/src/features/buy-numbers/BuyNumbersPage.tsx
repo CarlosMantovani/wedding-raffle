@@ -62,7 +62,9 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
     queryFn: homeService.getSummary,
   });
   const scheduledDrawAt = homeSummaryQuery.data?.scheduledDrawAt ?? null;
-  const isDrawClosed = isPastDateTime(scheduledDrawAt);
+  const raffleResult = homeSummaryQuery.data?.raffleResult ?? null;
+  const isFinalMoments = isPastDateTime(scheduledDrawAt) && !raffleResult;
+  const isDrawClosed = Boolean(raffleResult);
   const quoteQuery = useQuery({
     enabled: Boolean(buyer) && !isDrawClosed,
     placeholderData: (previousData) => previousData,
@@ -227,6 +229,16 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
         ) : null}
 
         {!isDrawClosed ? <CountdownPanel scheduledDrawAt={scheduledDrawAt} /> : null}
+
+        {isFinalMoments ? (
+          <Card className="border border-gold bg-gold/10 text-center shadow-none">
+            <h2 className="font-serif text-xl font-bold text-green">Últimos instantes</h2>
+            <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-warm-gray">
+              O sorteio está prestes a acontecer. Você ainda pode garantir seus números até o
+              resultado ser divulgado.
+            </p>
+          </Card>
+        ) : null}
 
         {recentCheckout && !isRedirectingToCheckout ? (
           <RecentCheckoutNotice
@@ -613,7 +625,7 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
         )}
         <RaffleResultPanel
           isDrawClosed={isDrawClosed}
-          result={homeSummaryQuery.data?.raffleResult ?? null}
+          result={raffleResult}
         />
         <FlagRankingPanel
           isLoading={homeSummaryQuery.isLoading}

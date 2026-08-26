@@ -144,13 +144,13 @@ class AdminTransactionServiceImplTests {
     void createsApprovedCashTransactionWithLuckyNumbers() {
         AdminTransactionServiceImpl service = service();
         String idempotencyKey = "cash-key-123";
-        String requestHash = purchaseRequestHasher.cash("Guest User", "11999999999", "guest@example.com", 2);
+        String requestHash = purchaseRequestHasher.cash("Guest User", "11999999999", "GUEST@example.com", 2);
         CashTransactionCreateResponse expectedResponse = new CashTransactionCreateResponse(
                 "cash-reference",
                 "4821",
                 "Guest User",
                 "11999999999",
-                "guest@example.com",
+                "GUEST@example.com",
                 PaymentMethod.CASH,
                 PaymentStatusResponse.APROVADO,
                 2,
@@ -167,7 +167,7 @@ class AdminTransactionServiceImplTests {
                         requestHash,
                         "Guest User",
                         "11999999999",
-                        "guest@example.com",
+                        "GUEST@example.com",
                         null,
                         2,
                         new BigDecimal("10.00"),
@@ -180,7 +180,7 @@ class AdminTransactionServiceImplTests {
 
         assertThat(response.name()).isEqualTo("Guest User");
         assertThat(response.phone()).isEqualTo("11999999999");
-        assertThat(response.email()).isEqualTo("guest@example.com");
+        assertThat(response.email()).isEqualTo("GUEST@example.com");
         assertThat(response.paymentMethod()).isEqualTo(PaymentMethod.CASH);
         assertThat(response.recoveryCode()).isEqualTo("4821");
         assertThat(response.status()).isEqualTo(PaymentStatusResponse.APROVADO);
@@ -194,7 +194,7 @@ class AdminTransactionServiceImplTests {
                         requestHash,
                         "Guest User",
                         "11999999999",
-                        "guest@example.com",
+                        "GUEST@example.com",
                         null,
                         2,
                         new BigDecimal("10.00"),
@@ -204,7 +204,7 @@ class AdminTransactionServiceImplTests {
     @Test
     void createCashTransactionRejectsPurchaseAfterDrawIsClosed() {
         AdminTransactionServiceImpl service = service();
-        String requestHash = purchaseRequestHasher.cash("Guest User", "11999999999", "guest@example.com", 2);
+        String requestHash = purchaseRequestHasher.cash("Guest User", "11999999999", "GUEST@example.com", 2);
         when(purchaseIntentService.findCash("cash-key-123", requestHash)).thenReturn(Optional.empty());
         when(raffleConfigService.isDrawClosed()).thenReturn(true);
 
