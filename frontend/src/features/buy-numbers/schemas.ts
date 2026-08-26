@@ -10,6 +10,12 @@ export const buyerSchema = z.object({
       const digits = value.replace(/\D/g, '');
       return digits.length === 10 || digits.length === 11;
     }, 'Informe um telefone com DDD.'),
+  email: z
+    .string()
+    .trim()
+    .refine((value) => value === '' || z.string().email().safeParse(value).success, {
+      message: 'Informe um e-mail válido.',
+    }),
 });
 
 export const recoverySchema = z.object({

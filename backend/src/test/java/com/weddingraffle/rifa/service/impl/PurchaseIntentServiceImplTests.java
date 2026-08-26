@@ -60,6 +60,7 @@ class PurchaseIntentServiceImplTests {
                         "Guest User",
                         "11999999999",
                         null,
+                        null,
                         20,
                         new PurchasePrice(new BigDecimal("50.00"), new BigDecimal("880.00"), combo));
 
@@ -97,6 +98,46 @@ class PurchaseIntentServiceImplTests {
         assertThat(transaction.getParticipantFlagEmoji()).isNull();
         verify(participantFlagService, never()).resolveForPhone(any());
         verify(capacityReservationService).reserve("external-reference", 2);
+    }
+
+    @Test
+    void storesOnlyProvidedEmailWhenPreparingOnlineIntent() {
+        when(purchaseIntentRepository.findByIdempotencyKey("checkout-key")).thenReturn(Optional.empty());
+
+        service()
+                .prepareOnline(
+                        "checkout-key",
+                        "request-hash",
+                        "Guest User",
+                        "11999999999",
+                        "guest@example.com",
+                        null,
+                        2,
+                        new PurchasePrice(new BigDecimal("10.00"), new BigDecimal("20.00"), null));
+
+        ArgumentCaptor<PurchaseIntent> captor = ArgumentCaptor.forClass(PurchaseIntent.class);
+        verify(purchaseIntentRepository).saveAndFlush(captor.capture());
+        assertThat(captor.getValue().getParticipantEmail()).isEqualTo("guest@example.com");
+    }
+
+    @Test
+    void doesNotPersistFallbackEmailWhenOnlineEmailIsMissing() {
+        when(purchaseIntentRepository.findByIdempotencyKey("checkout-key")).thenReturn(Optional.empty());
+
+        service()
+                .prepareOnline(
+                        "checkout-key",
+                        "request-hash",
+                        "Guest User",
+                        "11999999999",
+                        null,
+                        null,
+                        2,
+                        new PurchasePrice(new BigDecimal("10.00"), new BigDecimal("20.00"), null));
+
+        ArgumentCaptor<PurchaseIntent> captor = ArgumentCaptor.forClass(PurchaseIntent.class);
+        verify(purchaseIntentRepository).saveAndFlush(captor.capture());
+        assertThat(captor.getValue().getParticipantEmail()).isNull();
     }
 
     private PurchaseIntentServiceImpl service() {

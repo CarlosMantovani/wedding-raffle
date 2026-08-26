@@ -29,6 +29,24 @@ describe('purchase services', () => {
     });
   });
 
+  it('sends optional checkout email unchanged when present', async () => {
+    mockedApiClient.post.mockResolvedValue({
+      data: { checkoutUrl: 'https://checkout.example.com' },
+    });
+    const request = {
+      email: 'guest@example.com',
+      name: 'Guest User',
+      phone: '11999999999',
+      quantity: 2,
+    };
+
+    await transactionService.create(request, 'checkout-key-123');
+
+    expect(mockedApiClient.post).toHaveBeenCalledWith('/transactions', request, {
+      headers: { 'Idempotency-Key': 'checkout-key-123' },
+    });
+  });
+
   it('sends the cash registration idempotency key in the request header', async () => {
     mockedApiClient.post.mockResolvedValue({ data: { externalReference: 'cash-reference' } });
     const request = { name: 'Cash Guest', phone: '11999999999', quantity: 2 };

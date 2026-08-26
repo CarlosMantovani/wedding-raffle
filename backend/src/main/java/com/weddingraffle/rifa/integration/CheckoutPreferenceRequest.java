@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 
 public record CheckoutPreferenceRequest(
         String name,
+        String phone,
         String email,
         Integer quantity,
         BigDecimal unitPrice,
@@ -12,9 +13,10 @@ public record CheckoutPreferenceRequest(
         String externalReference) {
 
     public CheckoutPreferenceRequest(
-            String name, String email, Integer quantity, BigDecimal unitPrice, String externalReference) {
+            String name, String phone, String email, Integer quantity, BigDecimal unitPrice, String externalReference) {
         this(
                 name,
+                phone,
                 email,
                 quantity,
                 unitPrice,

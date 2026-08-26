@@ -13,7 +13,7 @@ public final class ParticipantNormalizer {
     }
 
     public static String normalizeEmail(String email) {
-        return StringUtils.hasText(email) ? email.trim().toLowerCase() : null;
+        return StringUtils.hasText(email) ? email.trim() : null;
     }
 
     public static String normalizeGiftMessage(String giftMessage) {

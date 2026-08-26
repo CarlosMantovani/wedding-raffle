@@ -372,6 +372,12 @@ describe('App', () => {
     renderApp('/buy');
 
     expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled();
+    expect(screen.getByLabelText(/E-mail/)).toHaveAttribute('type', 'email');
+    expect(
+      screen.getByText(
+        'E-mail opcional. Ele será utilizado apenas para o envio do comprovante de pagamento.',
+      ),
+    ).toBeInTheDocument();
 
     await user.type(screen.getByLabelText('Nome'), 'Guest User');
 
@@ -382,6 +388,57 @@ describe('App', () => {
 
     expect(screen.getByLabelText('Telefone')).toHaveValue('(44) 98854-9696');
     expect(screen.getByRole('button', { name: 'Continuar' })).toBeEnabled();
+  });
+
+  it('blocks invalid optional email before the quantity step', async () => {
+    const user = userEvent.setup();
+    renderApp('/buy');
+
+    await user.type(screen.getByLabelText('Nome'), 'Guest User');
+    await user.type(screen.getByLabelText('Telefone'), '44988549696');
+    await user.type(screen.getByLabelText(/E-mail/), 'carlos@');
+
+    expect(await screen.findByText('Informe um e-mail válido.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled();
+  });
+
+  it('sends optional email when filled', async () => {
+    const user = userEvent.setup();
+    const assign = vi.fn();
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { ...window.location, pathname: '/buy', assign },
+    });
+    mockedTransactionService.create.mockResolvedValue({
+      checkoutUrl: 'https://checkout.example.com',
+      externalReference: 'external-reference',
+      preferenceId: 'preference-id',
+      recoveryCode: '4821',
+    });
+
+    renderApp('/buy');
+
+    await user.type(screen.getByLabelText('Nome'), 'Guest User');
+    await user.type(screen.getByLabelText('Telefone'), '(11) 99999-9999');
+    await user.type(screen.getByLabelText(/E-mail/), 'guest@example.com');
+    await user.click(screen.getByRole('button', { name: 'Continuar' }));
+    await screen.findAllByText('R$ 10,00');
+    await advancePurchaseFlowToReview(user);
+
+    expect(screen.getByText('guest@example.com')).toBeInTheDocument();
+
+    await confirmMercadoPagoRedirect(user);
+
+    await waitFor(() => expect(mockedTransactionService.create).toHaveBeenCalledTimes(1));
+    expect(mockedTransactionService.create).toHaveBeenCalledWith(
+      {
+        email: 'guest@example.com',
+        name: 'Guest User',
+        phone: '11999999999',
+        quantity: 1,
+      },
+      expect.any(String),
+    );
   });
 
   it('calculates quote values locally when quantity changes', async () => {

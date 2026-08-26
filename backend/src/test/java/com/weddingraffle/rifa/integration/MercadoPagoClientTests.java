@@ -61,7 +61,8 @@ class MercadoPagoClientTests {
                 appProperties(), mock(PaymentClient.class), preferenceClient, mock(MerchantOrderClient.class));
 
         CheckoutPreferenceResponse response = client.createPreference(
-                new CheckoutPreferenceRequest("Guest User", null, 2, new BigDecimal("10.00"), "external-reference-123"),
+                new CheckoutPreferenceRequest(
+                        "Guest User", "11999999999", null, 2, new BigDecimal("10.00"), "external-reference-123"),
                 "checkout-key-123");
 
         ArgumentCaptor<MPRequestOptions> optionsCaptor = ArgumentCaptor.forClass(MPRequestOptions.class);
@@ -88,6 +89,7 @@ class MercadoPagoClientTests {
         client.createPreference(
                 new CheckoutPreferenceRequest(
                         "Guest User",
+                        "11999999999",
                         null,
                         20,
                         new BigDecimal("50.00"),
@@ -114,6 +116,74 @@ class MercadoPagoClientTests {
                 .isInstanceOf(ExternalPaymentException.class)
                 .hasMessageContaining("requires an idempotency key");
         verifyNoInteractions(preferenceClient);
+    }
+
+    @Test
+    void usesProvidedEmailAsPreferencePayerEmail() throws Exception {
+        PreferenceClient preferenceClient = mock(PreferenceClient.class);
+        Preference preference = mock(Preference.class);
+        when(preference.getId()).thenReturn("preference-123");
+        when(preference.getInitPoint()).thenReturn("https://checkout.example.com");
+        when(preference.getCollectorId()).thenReturn(456L);
+        when(preferenceClient.create(any(), any(MPRequestOptions.class))).thenReturn(preference);
+        MercadoPagoClient client = new MercadoPagoClient(
+                appProperties(), mock(PaymentClient.class), preferenceClient, mock(MerchantOrderClient.class));
+
+        client.createPreference(
+                new CheckoutPreferenceRequest(
+                        "Guest User",
+                        "(11) 99999-9999",
+                        "guest@example.com",
+                        2,
+                        new BigDecimal("10.00"),
+                        "external-reference-123"),
+                "checkout-key-123");
+
+        ArgumentCaptor<PreferenceRequest> requestCaptor = ArgumentCaptor.forClass(PreferenceRequest.class);
+        verify(preferenceClient).create(requestCaptor.capture(), any(MPRequestOptions.class));
+        assertThat(requestCaptor.getValue().getPayer().getEmail()).isEqualTo("guest@example.com");
+    }
+
+    @Test
+    void generatesFallbackPreferencePayerEmailFromNormalizedPhoneWhenEmailIsMissing() throws Exception {
+        PreferenceClient preferenceClient = mock(PreferenceClient.class);
+        Preference preference = mock(Preference.class);
+        when(preference.getId()).thenReturn("preference-123");
+        when(preference.getInitPoint()).thenReturn("https://checkout.example.com");
+        when(preference.getCollectorId()).thenReturn(456L);
+        when(preferenceClient.create(any(), any(MPRequestOptions.class))).thenReturn(preference);
+        MercadoPagoClient client = new MercadoPagoClient(
+                appProperties(), mock(PaymentClient.class), preferenceClient, mock(MerchantOrderClient.class));
+
+        client.createPreference(
+                new CheckoutPreferenceRequest(
+                        "Guest User", "(11) 99999-9999", null, 2, new BigDecimal("10.00"), "external-reference-123"),
+                "checkout-key-123");
+
+        ArgumentCaptor<PreferenceRequest> requestCaptor = ArgumentCaptor.forClass(PreferenceRequest.class);
+        verify(preferenceClient).create(requestCaptor.capture(), any(MPRequestOptions.class));
+        assertThat(requestCaptor.getValue().getPayer().getEmail()).isEqualTo("11999999999@wedding-raffle.com");
+    }
+
+    @Test
+    void generatesFallbackPreferencePayerEmailWhenEmailIsBlank() throws Exception {
+        PreferenceClient preferenceClient = mock(PreferenceClient.class);
+        Preference preference = mock(Preference.class);
+        when(preference.getId()).thenReturn("preference-123");
+        when(preference.getInitPoint()).thenReturn("https://checkout.example.com");
+        when(preference.getCollectorId()).thenReturn(456L);
+        when(preferenceClient.create(any(), any(MPRequestOptions.class))).thenReturn(preference);
+        MercadoPagoClient client = new MercadoPagoClient(
+                appProperties(), mock(PaymentClient.class), preferenceClient, mock(MerchantOrderClient.class));
+
+        client.createPreference(
+                new CheckoutPreferenceRequest(
+                        "Guest User", "11999999999", " ", 2, new BigDecimal("10.00"), "external-reference-123"),
+                "checkout-key-123");
+
+        ArgumentCaptor<PreferenceRequest> requestCaptor = ArgumentCaptor.forClass(PreferenceRequest.class);
+        verify(preferenceClient).create(requestCaptor.capture(), any(MPRequestOptions.class));
+        assertThat(requestCaptor.getValue().getPayer().getEmail()).isEqualTo("11999999999@wedding-raffle.com");
     }
 
     @Test
@@ -179,6 +249,7 @@ class MercadoPagoClientTests {
     }
 
     private static CheckoutPreferenceRequest preferenceRequest() {
-        return new CheckoutPreferenceRequest("Guest User", null, 2, new BigDecimal("10.00"), "external-reference-123");
+        return new CheckoutPreferenceRequest(
+                "Guest User", "11999999999", null, 2, new BigDecimal("10.00"), "external-reference-123");
     }
 }
