@@ -32,9 +32,10 @@ import { buyerSchema, type BuyerFormData } from './schemas';
 const CHECKOUT_IDEMPOTENCY_ACTION = 'mercado-pago-checkout';
 const GIFT_MESSAGE_MAX_LENGTH = 280;
 type PurchaseStep = 'quantity' | 'message' | 'review';
+type BuyerData = { email?: string; name: string; phone: string };
 
 export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolean }) {
-  const [buyer, setBuyer] = useState<BuyerFormData | null>(null);
+  const [buyer, setBuyer] = useState<BuyerData | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [giftMessage, setGiftMessage] = useState('');
   const [selectedComboId, setSelectedComboId] = useState<number | null>(null);
@@ -51,7 +52,7 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
     handleSubmit,
     register,
   } = useForm<BuyerFormData>({
-    defaultValues: { name: '', phone: '' },
+    defaultValues: { email: '', name: '', phone: '' },
     mode: 'onChange',
     resolver: zodResolver(buyerSchema),
   });
@@ -128,7 +129,9 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
   });
 
   const onSubmitBuyer = (data: BuyerFormData) => {
+    const email = data.email.trim();
     setBuyer({
+      ...(email ? { email } : {}),
       name: data.name.trim(),
       phone: normalizePhoneNumber(data.phone),
     });
@@ -276,6 +279,18 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
                 })}
               />
 
+              <TextInput
+                autoComplete="email"
+                error={errors.email?.message}
+                helper="E-mail opcional. Ele será utilizado apenas para o envio do comprovante de pagamento."
+                id="buyer-email"
+                inputMode="email"
+                label="E-mail (opcional)"
+                placeholder="seu@email.com"
+                type="email"
+                {...register('email')}
+              />
+
               <Button disabled={!isValid || homeSummaryQuery.isLoading} type="submit">
                 Continuar
               </Button>
@@ -294,13 +309,6 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
               <h1 className="font-serif text-lg text-charcoal" id="quantity-title">
                 Escolha seus números
               </h1>
-              <button
-                className="mt-2 text-xs font-semibold text-green underline underline-offset-4"
-                onClick={() => setBuyer(null)}
-                type="button"
-              >
-                Alterar dados
-              </button>
             </div>
 
             <Card>
@@ -429,6 +437,9 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
             >
               Continuar
             </Button>
+            <Button onClick={() => setBuyer(null)} type="button" variant="secondary">
+              Alterar dados
+            </Button>
           </section>
         ) : purchaseStep === 'message' ? (
           <section className="space-y-4" aria-labelledby="message-title">
@@ -486,6 +497,12 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
                   <dt className="text-sm text-warm-gray">Telefone</dt>
                   <dd className="text-sm font-semibold">{formatPhoneNumber(buyer.phone)}</dd>
                 </div>
+                {buyer.email ? (
+                  <div className="flex items-center justify-between gap-4">
+                    <dt className="text-sm text-warm-gray">E-mail (opcional)</dt>
+                    <dd className="text-right text-sm font-semibold">{buyer.email}</dd>
+                  </div>
+                ) : null}
                 <div className="flex items-center justify-between gap-4">
                   <dt className="text-sm text-warm-gray">Quantidade</dt>
                   <dd className="text-sm font-semibold">
@@ -640,7 +657,7 @@ function multiplyMoney(amount: string | number, quantity: number): string {
 
 interface PurchaseSubmission {
   idempotencyKey: string;
-  request: BuyerFormData & { giftMessage?: string; quantity: number; comboId?: number };
+  request: BuyerData & { giftMessage?: string; quantity: number; comboId?: number };
 }
 
 function RecentCheckoutNotice({

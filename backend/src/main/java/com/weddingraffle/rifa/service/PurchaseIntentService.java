@@ -16,6 +16,7 @@ public interface PurchaseIntentService {
             String requestHash,
             String name,
             String phone,
+            String email,
             String giftMessage,
             int quantity,
             PurchasePrice purchasePrice);

@@ -105,14 +105,21 @@ class TransactionServiceImplTests {
         TransactionServiceImpl transactionService = transactionService();
         String idempotencyKey = "checkout-key-123";
         String requestHash = purchaseRequestHasher.online("Guest User", "11999999999", 2);
-        CheckoutPreferenceRequest preferenceRequest =
-                new CheckoutPreferenceRequest("Guest User", null, 2, new BigDecimal("10.00"), "external-reference-123");
+        CheckoutPreferenceRequest preferenceRequest = new CheckoutPreferenceRequest(
+                "Guest User", "11999999999", null, 2, new BigDecimal("10.00"), "external-reference-123");
         TransactionCreateResponse expectedResponse = new TransactionCreateResponse(
                 "external-reference-123", "4821", "preference-123", "https://checkout.example.com");
         when(purchaseIntentService.findOnline(idempotencyKey, requestHash)).thenReturn(Optional.empty());
         when(rafflePricingService.calculate(2, null)).thenReturn(regularPurchasePrice());
         when(purchaseIntentService.prepareOnline(
-                        idempotencyKey, requestHash, "Guest User", "11999999999", null, 2, regularPurchasePrice()))
+                        idempotencyKey,
+                        requestHash,
+                        "Guest User",
+                        "11999999999",
+                        null,
+                        null,
+                        2,
+                        regularPurchasePrice()))
                 .thenReturn(new OnlinePurchaseAttempt(preferenceRequest, null));
         when(paymentProviderClient.createPreference(preferenceRequest, idempotencyKey))
                 .thenReturn(new CheckoutPreferenceResponse(
@@ -136,6 +143,7 @@ class TransactionServiceImplTests {
                 ArgumentCaptor.forClass(CheckoutPreferenceRequest.class);
         verify(paymentProviderClient).createPreference(preferenceCaptor.capture(), eq(idempotencyKey));
         assertThat(preferenceCaptor.getValue().name()).isEqualTo("Guest User");
+        assertThat(preferenceCaptor.getValue().phone()).isEqualTo("11999999999");
         assertThat(preferenceCaptor.getValue().email()).isNull();
         assertThat(preferenceCaptor.getValue().quantity()).isEqualTo(2);
         assertThat(preferenceCaptor.getValue().unitPrice()).isEqualByComparingTo("10.00");
@@ -150,12 +158,12 @@ class TransactionServiceImplTests {
     }
 
     @Test
-    void trimsGiftMessageWhenCreatingCheckout() {
+    void createsCheckoutPreferenceWithOptionalEmail() {
         TransactionServiceImpl transactionService = transactionService();
         String idempotencyKey = "checkout-key-123";
-        String requestHash = purchaseRequestHasher.online("Guest User", "11999999999", "Felicidades!", 2);
-        CheckoutPreferenceRequest preferenceRequest =
-                new CheckoutPreferenceRequest("Guest User", null, 2, new BigDecimal("10.00"), "external-reference-123");
+        String requestHash = purchaseRequestHasher.online("Guest User", "11999999999", "guest@example.com", null, 2);
+        CheckoutPreferenceRequest preferenceRequest = new CheckoutPreferenceRequest(
+                "Guest User", "11999999999", "guest@example.com", 2, new BigDecimal("10.00"), "external-reference-123");
         TransactionCreateResponse expectedResponse = new TransactionCreateResponse(
                 "external-reference-123", "4821", "preference-123", "https://checkout.example.com");
         when(purchaseIntentService.findOnline(idempotencyKey, requestHash)).thenReturn(Optional.empty());
@@ -165,6 +173,48 @@ class TransactionServiceImplTests {
                         requestHash,
                         "Guest User",
                         "11999999999",
+                        "guest@example.com",
+                        null,
+                        2,
+                        regularPurchasePrice()))
+                .thenReturn(new OnlinePurchaseAttempt(preferenceRequest, null));
+        when(paymentProviderClient.createPreference(preferenceRequest, idempotencyKey))
+                .thenReturn(new CheckoutPreferenceResponse(
+                        "preference-123", "https://checkout.example.com", "collector-123"));
+        when(purchaseIntentService.completeOnline(
+                        idempotencyKey,
+                        requestHash,
+                        new CheckoutPreferenceResponse(
+                                "preference-123", "https://checkout.example.com", "collector-123")))
+                .thenReturn(expectedResponse);
+
+        transactionService.create(
+                idempotencyKey,
+                new TransactionCreateRequest("Guest User", "(11) 99999-9999", "guest@example.com", null, 2, null));
+
+        ArgumentCaptor<CheckoutPreferenceRequest> preferenceCaptor =
+                ArgumentCaptor.forClass(CheckoutPreferenceRequest.class);
+        verify(paymentProviderClient).createPreference(preferenceCaptor.capture(), eq(idempotencyKey));
+        assertThat(preferenceCaptor.getValue().email()).isEqualTo("guest@example.com");
+    }
+
+    @Test
+    void trimsGiftMessageWhenCreatingCheckout() {
+        TransactionServiceImpl transactionService = transactionService();
+        String idempotencyKey = "checkout-key-123";
+        String requestHash = purchaseRequestHasher.online("Guest User", "11999999999", "Felicidades!", 2);
+        CheckoutPreferenceRequest preferenceRequest = new CheckoutPreferenceRequest(
+                "Guest User", "11999999999", null, 2, new BigDecimal("10.00"), "external-reference-123");
+        TransactionCreateResponse expectedResponse = new TransactionCreateResponse(
+                "external-reference-123", "4821", "preference-123", "https://checkout.example.com");
+        when(purchaseIntentService.findOnline(idempotencyKey, requestHash)).thenReturn(Optional.empty());
+        when(rafflePricingService.calculate(2, null)).thenReturn(regularPurchasePrice());
+        when(purchaseIntentService.prepareOnline(
+                        idempotencyKey,
+                        requestHash,
+                        "Guest User",
+                        "11999999999",
+                        null,
                         "Felicidades!",
                         2,
                         regularPurchasePrice()))
@@ -198,7 +248,7 @@ class TransactionServiceImplTests {
                 .hasMessage("Draw is closed. No more numbers can be purchased.");
         verify(paymentProviderClient, never()).createPreference(any(), any());
         verify(purchaseIntentService, never())
-                .prepareOnline(any(), any(), any(), any(), any(), any(Integer.class), any());
+                .prepareOnline(any(), any(), any(), any(), any(), any(), any(Integer.class), any());
     }
 
     @Test
@@ -208,8 +258,8 @@ class TransactionServiceImplTests {
         String requestHash = purchaseRequestHasher.online("Guest User", "11999999999", 2);
         TransactionCreateResponse persistedResponse = new TransactionCreateResponse(
                 "external-reference-123", "4821", "preference-123", "https://checkout.example.com");
-        CheckoutPreferenceRequest preferenceRequest =
-                new CheckoutPreferenceRequest("Guest User", null, 2, new BigDecimal("10.00"), "external-reference-123");
+        CheckoutPreferenceRequest preferenceRequest = new CheckoutPreferenceRequest(
+                "Guest User", "11999999999", null, 2, new BigDecimal("10.00"), "external-reference-123");
         when(purchaseIntentService.findOnline(idempotencyKey, requestHash))
                 .thenReturn(Optional.of(new OnlinePurchaseAttempt(preferenceRequest, persistedResponse)));
 
@@ -230,7 +280,14 @@ class TransactionServiceImplTests {
                 .thenReturn(Optional.empty(), Optional.empty());
         when(rafflePricingService.calculate(2, null)).thenReturn(regularPurchasePrice());
         when(purchaseIntentService.prepareOnline(
-                        idempotencyKey, requestHash, "Guest User", "11999999999", null, 2, regularPurchasePrice()))
+                        idempotencyKey,
+                        requestHash,
+                        "Guest User",
+                        "11999999999",
+                        null,
+                        null,
+                        2,
+                        regularPurchasePrice()))
                 .thenThrow(new DataIntegrityViolationException("database unavailable"));
 
         assertThatThrownBy(() -> transactionService.create(
@@ -245,8 +302,8 @@ class TransactionServiceImplTests {
         TransactionServiceImpl transactionService = transactionService();
         String idempotencyKey = "checkout-key-123";
         String requestHash = purchaseRequestHasher.online("Guest User", "11999999999", 2);
-        CheckoutPreferenceRequest preferenceRequest =
-                new CheckoutPreferenceRequest("Guest User", null, 2, new BigDecimal("10.00"), "external-reference-123");
+        CheckoutPreferenceRequest preferenceRequest = new CheckoutPreferenceRequest(
+                "Guest User", "11999999999", null, 2, new BigDecimal("10.00"), "external-reference-123");
         OnlinePurchaseAttempt pendingAttempt = new OnlinePurchaseAttempt(preferenceRequest, null);
         CheckoutPreferenceResponse preference =
                 new CheckoutPreferenceResponse("preference-123", "https://checkout.example.com", "collector-123");
@@ -256,7 +313,14 @@ class TransactionServiceImplTests {
                 .thenReturn(Optional.empty(), Optional.of(pendingAttempt));
         when(rafflePricingService.calculate(2, null)).thenReturn(regularPurchasePrice());
         when(purchaseIntentService.prepareOnline(
-                        idempotencyKey, requestHash, "Guest User", "11999999999", null, 2, regularPurchasePrice()))
+                        idempotencyKey,
+                        requestHash,
+                        "Guest User",
+                        "11999999999",
+                        null,
+                        null,
+                        2,
+                        regularPurchasePrice()))
                 .thenReturn(pendingAttempt);
         when(paymentProviderClient.createPreference(preferenceRequest, idempotencyKey))
                 .thenThrow(new ExternalPaymentException("response lost", new java.net.SocketTimeoutException()))
@@ -274,7 +338,14 @@ class TransactionServiceImplTests {
         verify(paymentProviderClient, times(2)).createPreference(preferenceRequest, idempotencyKey);
         verify(purchaseIntentService, times(1))
                 .prepareOnline(
-                        idempotencyKey, requestHash, "Guest User", "11999999999", null, 2, regularPurchasePrice());
+                        idempotencyKey,
+                        requestHash,
+                        "Guest User",
+                        "11999999999",
+                        null,
+                        null,
+                        2,
+                        regularPurchasePrice());
     }
 
     @Test
@@ -282,8 +353,8 @@ class TransactionServiceImplTests {
         TransactionServiceImpl transactionService = transactionService();
         String idempotencyKey = "checkout-key-123";
         String requestHash = purchaseRequestHasher.online("Guest User", "11999999999", 2);
-        CheckoutPreferenceRequest preferenceRequest =
-                new CheckoutPreferenceRequest("Guest User", null, 2, new BigDecimal("10.00"), "external-reference-123");
+        CheckoutPreferenceRequest preferenceRequest = new CheckoutPreferenceRequest(
+                "Guest User", "11999999999", null, 2, new BigDecimal("10.00"), "external-reference-123");
         OnlinePurchaseAttempt pendingAttempt = new OnlinePurchaseAttempt(preferenceRequest, null);
         CheckoutPreferenceResponse preference =
                 new CheckoutPreferenceResponse("preference-123", "https://checkout.example.com", "collector-123");
@@ -293,7 +364,14 @@ class TransactionServiceImplTests {
                 .thenReturn(Optional.empty(), Optional.of(pendingAttempt));
         when(rafflePricingService.calculate(2, null)).thenReturn(regularPurchasePrice());
         when(purchaseIntentService.prepareOnline(
-                        idempotencyKey, requestHash, "Guest User", "11999999999", null, 2, regularPurchasePrice()))
+                        idempotencyKey,
+                        requestHash,
+                        "Guest User",
+                        "11999999999",
+                        null,
+                        null,
+                        2,
+                        regularPurchasePrice()))
                 .thenReturn(pendingAttempt);
         when(paymentProviderClient.createPreference(preferenceRequest, idempotencyKey))
                 .thenReturn(preference);

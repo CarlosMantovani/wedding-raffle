@@ -289,7 +289,8 @@ class MercadoPagoHttpResilienceTests {
     }
 
     private static CheckoutPreferenceRequest preferenceRequest() {
-        return new CheckoutPreferenceRequest("Guest User", null, 2, new BigDecimal("10.00"), "external-reference-123");
+        return new CheckoutPreferenceRequest(
+                "Guest User", "11999999999", null, 2, new BigDecimal("10.00"), "external-reference-123");
     }
 
     private static MockResponse successResponse() {
