@@ -205,9 +205,12 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
       <div className="mx-auto flex w-full max-w-[480px] flex-col gap-7">
         <header className="text-center">
           <BrandMark />
-          <p className="mx-auto mt-4 max-w-xs text-sm leading-relaxed text-warm-gray">
-            Participe do sorteio e faça parte deste presente especial para o casal.
-          </p>
+            <p className="mt-2 font-serif text-2xl font-bold leading-tight text-charcoal">
+                Presente <span className="italic text-gold">Premiado</span>
+            </p>
+            <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-warm-gray">
+                Participe do sorteio e faça parte deste presente especial para o casal.
+            </p>
           <div className="mt-6">
             <GoldDivider />
           </div>
