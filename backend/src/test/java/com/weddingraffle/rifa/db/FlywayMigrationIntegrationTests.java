@@ -52,6 +52,8 @@ class FlywayMigrationIntegrationTests {
             assertThat(tableExists(statement, "raffle_draw")).isTrue();
             assertThat(tableExists(statement, "admin_user")).isTrue();
             assertThat(tableExists(statement, "raffle_config")).isTrue();
+            assertThat(columnExists(statement, "raffle_config", "wedding_event_at"))
+                    .isTrue();
             assertThat(tableExists(statement, "raffle_capacity")).isTrue();
             assertThat(tableExists(statement, "capacity_reservation")).isTrue();
             assertThat(tableExists(statement, "purchase_intent")).isTrue();

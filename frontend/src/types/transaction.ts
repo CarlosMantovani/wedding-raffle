@@ -36,10 +36,12 @@ export interface TransactionQuoteResponse {
 export interface TransactionCreateRequest {
   name: string;
   phone: string;
+  cpf: string;
   email?: string;
   giftMessage?: string;
   quantity: number;
   comboId?: number;
+  deviceId?: string;
 }
 
 export interface TransactionCreateResponse {

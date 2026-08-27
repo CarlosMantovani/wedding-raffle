@@ -103,6 +103,41 @@ class RaffleConfigControllerTests {
                 .andExpect(jsonPath("$.scheduledDrawAt").value("2026-09-05T20:00:00-03:00"));
     }
 
+    @Test
+    void updateWeddingEventAtReturnsUpdatedConfigForAdmin() throws Exception {
+        when(raffleConfigService.updateWeddingEventAt(any()))
+                .thenReturn(new RaffleConfigResponse(
+                        new BigDecimal("10.00"),
+                        null,
+                        OffsetDateTime.parse("2026-09-05T18:00:00-03:00"),
+                        OffsetDateTime.parse("2026-08-14T18:00:00-03:00")));
+
+        mockMvc.perform(put("/admin/raffle-config/wedding-event-at")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"weddingEventAt\":\"2026-09-05T18:00:00-03:00\"}")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_MASTER"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.weddingEventAt").value("2026-09-05T18:00:00-03:00"));
+    }
+
+    @Test
+    void updateWeddingEventAtRejectsMissingValue() throws Exception {
+        mockMvc.perform(put("/admin/raffle-config/wedding-event-at")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_MASTER"))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void updateWeddingEventAtRejectsCashierRole() throws Exception {
+        mockMvc.perform(put("/admin/raffle-config/wedding-event-at")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"weddingEventAt\":\"2026-09-05T18:00:00-03:00\"}")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CASHIER"))))
+                .andExpect(status().isForbidden());
+    }
+
     @TestConfiguration
     static class TestConfig {
 

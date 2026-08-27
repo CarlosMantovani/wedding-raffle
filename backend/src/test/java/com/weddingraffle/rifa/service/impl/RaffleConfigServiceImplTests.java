@@ -3,11 +3,14 @@ package com.weddingraffle.rifa.service.impl;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
+import com.weddingraffle.rifa.entity.RaffleConfig;
 import com.weddingraffle.rifa.entity.RaffleDraw;
 import com.weddingraffle.rifa.repository.RaffleConfigRepository;
 import com.weddingraffle.rifa.repository.RaffleDrawRepository;
 import com.weddingraffle.rifa.service.RaffleComboService;
 import jakarta.persistence.EntityManager;
+import java.math.BigDecimal;
+import java.time.OffsetDateTime;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,6 +45,16 @@ class RaffleConfigServiceImplTests {
                 .thenReturn(Optional.of(new RaffleDraw("00042", "Winner Guest", null)));
 
         assertThat(service().isDrawClosed()).isTrue();
+    }
+
+    @Test
+    void returnsConfiguredWeddingEventDate() {
+        RaffleConfig config = new RaffleConfig(new BigDecimal("10.00"));
+        OffsetDateTime weddingEventAt = OffsetDateTime.parse("2026-09-05T18:00:00-03:00");
+        config.updateWeddingEventAt(weddingEventAt);
+        when(raffleConfigRepository.findById(RaffleConfig.SINGLETON_ID)).thenReturn(Optional.of(config));
+
+        assertThat(service().getWeddingEventAt()).isEqualTo(weddingEventAt);
     }
 
     private RaffleConfigServiceImpl service() {

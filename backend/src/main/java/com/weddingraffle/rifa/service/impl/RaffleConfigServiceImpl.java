@@ -41,6 +41,12 @@ public class RaffleConfigServiceImpl implements RaffleConfigService {
 
     @Override
     @Transactional(readOnly = true)
+    public OffsetDateTime getWeddingEventAt() {
+        return getCurrentConfig().getWeddingEventAt();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public boolean isDrawClosed() {
         return raffleDrawRepository.findFirstByOrderByIdAsc().isPresent();
     }
@@ -70,6 +76,14 @@ public class RaffleConfigServiceImpl implements RaffleConfigService {
 
     @Override
     @Transactional
+    public RaffleConfigResponse updateWeddingEventAt(OffsetDateTime weddingEventAt) {
+        RaffleConfig config = getCurrentConfig();
+        config.updateWeddingEventAt(weddingEventAt);
+        return saveAndRefresh(config);
+    }
+
+    @Override
+    @Transactional
     public RaffleConfigResponse updateCombo(Long comboId, RaffleComboUpdateRequest request) {
         RaffleConfig config = getCurrentConfig();
         raffleComboService.updateCombo(comboId, request, config.getUnitPrice());
@@ -92,6 +106,7 @@ public class RaffleConfigServiceImpl implements RaffleConfigService {
         return new RaffleConfigResponse(
                 config.getUnitPrice(),
                 config.getScheduledDrawAt(),
+                config.getWeddingEventAt(),
                 config.getUpdatedAt(),
                 raffleComboService.getAllCombos(config.getUnitPrice()));
     }

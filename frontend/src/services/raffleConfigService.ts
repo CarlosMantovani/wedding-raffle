@@ -4,6 +4,7 @@ import type {
   RaffleConfigResponse,
   ScheduledDrawAtUpdateRequest,
   UnitPriceUpdateRequest,
+  WeddingEventAtUpdateRequest,
 } from '../types/admin';
 
 export const raffleConfigService = {
@@ -25,6 +26,14 @@ export const raffleConfigService = {
   ): Promise<RaffleConfigResponse> {
     const response = await apiClient.put<RaffleConfigResponse>(
       '/admin/raffle-config/scheduled-at',
+      request,
+    );
+    return response.data;
+  },
+
+  async updateWeddingEventAt(request: WeddingEventAtUpdateRequest): Promise<RaffleConfigResponse> {
+    const response = await apiClient.put<RaffleConfigResponse>(
+      '/admin/raffle-config/wedding-event-at',
       request,
     );
     return response.data;
