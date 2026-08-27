@@ -13,7 +13,7 @@ public interface AdminTransactionService {
 
     AdminTransactionSummaryResponse getSummary();
 
-    Page<AdminTransactionResponse> list(String query, Pageable pageable);
+    Page<AdminTransactionResponse> list(String query, Pageable pageable, boolean includeFinancialValues);
 
     Page<AdminGiftMessageResponse> listGiftMessages(Pageable pageable);
 

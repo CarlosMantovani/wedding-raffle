@@ -19,14 +19,14 @@ class JwtServiceTests {
     @Test
     void generatesTokenWithAdminClaims() {
         JwtService jwtService = new JwtService(jwtEncoder(), appProperties());
-        TestingAuthenticationToken authentication = new TestingAuthenticationToken("admin", "password");
+        TestingAuthenticationToken authentication = new TestingAuthenticationToken("admin", "password", "ROLE_MASTER");
 
         String token = jwtService.generateToken(authentication);
         Jwt jwt = jwtDecoder().decode(token);
 
         assertThat(jwt.getSubject()).isEqualTo("admin");
         assertThat(jwt.getClaimAsString("iss")).isEqualTo("raffle-api-test");
-        assertThat(jwt.getClaimAsStringList("roles")).containsExactly("ADMIN");
+        assertThat(jwt.getClaimAsStringList("roles")).containsExactly("MASTER");
         assertThat(jwt.getIssuedAt()).isNotNull();
         assertThat(jwt.getExpiresAt()).isNotNull();
         assertThat(jwtService.expiresInSeconds()).isEqualTo(3600);

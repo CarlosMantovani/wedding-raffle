@@ -28,6 +28,9 @@ public class AuthServiceImpl implements AuthService {
                 new UsernamePasswordAuthenticationToken(request.username(), request.password()));
 
         return new AuthLoginResponse(
-                TOKEN_TYPE, jwtService.generateToken(authentication), jwtService.expiresInSeconds());
+                TOKEN_TYPE,
+                jwtService.generateToken(authentication),
+                jwtService.expiresInSeconds(),
+                jwtService.roles(authentication));
     }
 }

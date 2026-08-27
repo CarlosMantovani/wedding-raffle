@@ -7,10 +7,7 @@ import { FlagEmoji } from '../../components/ui/FlagEmoji';
 import { raffleService } from '../../services/raffleService';
 import type { ApiError } from '../../types/api';
 import type { RaffleCandidateResponse, RaffleDrawResponse } from '../../types/admin';
-
-const REVEAL_DURATION_MS = 10000;
-const REVEAL_INITIAL_TICK_MS = 90;
-const REVEAL_FINAL_TICK_MS = 450;
+import { runRevealAnimation } from './revealAnimation';
 
 export function AdminDrawPage() {
   const [isConfirming, setIsConfirming] = useState(false);
@@ -25,8 +22,13 @@ export function AdminDrawPage() {
   const drawMutation = useMutation<RaffleDrawResponse, ApiError>({
     mutationFn: async () => {
       const eligibleNumbers = await raffleService.getEligibleNumbers();
-      await runRevealAnimation(eligibleNumbers, setRevealCandidate);
-      return raffleService.draw();
+      const result = await raffleService.draw();
+      await runRevealAnimation(
+        eligibleNumbers,
+        toRevealCandidate(result, eligibleNumbers),
+        setRevealCandidate,
+      );
+      return result;
     },
     onMutate: () => {
       setIsConfirming(false);
@@ -47,7 +49,10 @@ export function AdminDrawPage() {
   return (
     <main className="min-h-screen bg-[#1B1714] px-6 py-8 text-white">
       <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-3xl flex-col">
-        <a className="inline-flex w-fit items-center gap-2 text-sm font-semibold text-white/70 hover:text-white" href="/admin">
+        <a
+          className="inline-flex w-fit items-center gap-2 text-sm font-semibold text-white/70 hover:text-white"
+          href="/admin"
+        >
           <ArrowLeft aria-hidden="true" className="h-4 w-4" />
           Voltar ao painel
         </a>
@@ -71,10 +76,15 @@ export function AdminDrawPage() {
                   </div>
                 </div>
 
-                {resultQuery.isLoading ? <p className="mt-8 text-sm text-white/60">Consultando resultado...</p> : null}
+                {resultQuery.isLoading ? (
+                  <p className="mt-8 text-sm text-white/60">Consultando resultado...</p>
+                ) : null}
 
                 {drawError ? (
-                  <p className="mx-auto mt-6 max-w-sm rounded-lg border border-gold/20 bg-white/5 px-4 py-3 text-sm text-white/80" role="alert">
+                  <p
+                    className="mx-auto mt-6 max-w-sm rounded-lg border border-gold/20 bg-white/5 px-4 py-3 text-sm text-white/80"
+                    role="alert"
+                  >
                     {drawError.status === 409
                       ? 'Ainda não há números aprovados suficientes para realizar o sorteio.'
                       : 'Não foi possível realizar o sorteio agora.'}
@@ -92,7 +102,10 @@ export function AdminDrawPage() {
             ) : null}
 
             {!isRevealing && result && drawError ? (
-              <p className="mx-auto mt-6 max-w-sm rounded-lg border border-gold/20 bg-white/5 px-4 py-3 text-sm text-white/80" role="alert">
+              <p
+                className="mx-auto mt-6 max-w-sm rounded-lg border border-gold/20 bg-white/5 px-4 py-3 text-sm text-white/80"
+                role="alert"
+              >
                 {drawError.status === 409
                   ? 'Ainda não há números aprovados suficientes para realizar o sorteio.'
                   : 'Não foi possível realizar o sorteio agora.'}
@@ -148,7 +161,9 @@ function RevealStage({ candidate }: { candidate: RaffleCandidateResponse | null 
           <span className="font-serif text-6xl font-bold text-gold drop-shadow-[0_0_30px_rgba(201,162,39,0.35)]">
             {candidate?.luckyNumber ?? '-----'}
           </span>
-          {candidate?.participantFlagName ? <span className="text-sm font-bold text-white/70">{candidate.participantFlagName}</span> : null}
+          {candidate?.participantFlagName ? (
+            <span className="text-sm font-bold text-white/70">{candidate.participantFlagName}</span>
+          ) : null}
         </div>
       </div>
     </div>
@@ -173,37 +188,21 @@ function WinnerResult({ result }: { result: RaffleDrawResponse }) {
       ) : null}
       <p className="mt-8 font-serif text-4xl font-bold">{result.winnerName}</p>
       <p className="mt-3 text-sm text-white/50">
-        Sorteado em {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(result.drawnAt))}
+        Sorteado em{' '}
+        {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(
+          new Date(result.drawnAt),
+        )}
       </p>
     </div>
   );
 }
 
-function runRevealAnimation(candidates: RaffleCandidateResponse[], setCandidate: (candidate: RaffleCandidateResponse) => void) {
-  if (candidates.length === 0) return Promise.resolve();
-
-  return new Promise<void>((resolve) => {
-    let index = 0;
-    const startedAt = performance.now();
-    setCandidate(candidates[index]);
-
-    const scheduleNextCandidate = () => {
-      const elapsed = performance.now() - startedAt;
-      const progress = Math.min(elapsed / REVEAL_DURATION_MS, 1);
-      if (progress >= 1) {
-        resolve();
-        return;
-      }
-
-      index = (index + 1) % candidates.length;
-      setCandidate(candidates[index]);
-
-      const easedProgress = progress ** 2;
-      const nextTick =
-        REVEAL_INITIAL_TICK_MS + (REVEAL_FINAL_TICK_MS - REVEAL_INITIAL_TICK_MS) * easedProgress;
-      window.setTimeout(scheduleNextCandidate, nextTick);
-    };
-
-    window.setTimeout(scheduleNextCandidate, REVEAL_INITIAL_TICK_MS);
-  });
+function toRevealCandidate(result: RaffleDrawResponse, candidates: RaffleCandidateResponse[]) {
+  return (
+    candidates.find((candidate) => candidate.luckyNumber === result.winningNumber) ?? {
+      luckyNumber: result.winningNumber,
+      participantFlagEmoji: result.participantFlagEmoji ?? '',
+      participantFlagName: result.participantFlagName ?? '',
+    }
+  );
 }

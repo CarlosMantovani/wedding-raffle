@@ -36,7 +36,8 @@ class AuthControllerTests {
 
     @Test
     void loginReturnsTokenWithoutAuthentication() throws Exception {
-        when(authService.login(any())).thenReturn(new AuthLoginResponse("Bearer", "jwt-token", 3600));
+        when(authService.login(any()))
+                .thenReturn(new AuthLoginResponse("Bearer", "jwt-token", 3600, java.util.List.of("MASTER")));
 
         mockMvc.perform(post("/auth/login")
                         .contentType("application/json")
@@ -44,7 +45,8 @@ class AuthControllerTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.tokenType").value("Bearer"))
                 .andExpect(jsonPath("$.accessToken").value("jwt-token"))
-                .andExpect(jsonPath("$.expiresIn").value(3600));
+                .andExpect(jsonPath("$.expiresIn").value(3600))
+                .andExpect(jsonPath("$.roles[0]").value("MASTER"));
     }
 
     @Test

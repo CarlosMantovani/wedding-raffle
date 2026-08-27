@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { App } from './App';
+import { runRevealAnimation } from './features/admin/revealAnimation';
 import { CountdownPanel } from './features/buy-numbers/CountdownPanel';
 import { adminTransactionService } from './services/adminTransactionService';
 import { createAdminSession, storeAdminSession } from './services/adminSession';
@@ -92,7 +93,7 @@ function renderApp(path = '/') {
 
 async function advancePurchaseFlowToReview(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('button', { name: 'Continuar' }));
-  await user.click(screen.getByRole('button', { name: 'Revisar dados' }));
+  await user.click(screen.getByRole('button', { name: 'Continuar' }));
 }
 
 async function confirmMercadoPagoRedirect(user: ReturnType<typeof userEvent.setup>) {
@@ -225,8 +226,13 @@ describe('App', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('A líder também ganhará um prêmio especial.')).toBeInTheDocument();
     expect(await screen.findAllByText('Brasil')).toHaveLength(2);
-    expect(screen.getAllByRole('progressbar', { name: 'Progresso relativo de Brasil' })).toHaveLength(2);
-    expect(screen.getByRole('link', { name: 'Ver top 15' })).toHaveAttribute('href', '/flag-ranking');
+    expect(
+      screen.getAllByRole('progressbar', { name: 'Progresso relativo de Brasil' }),
+    ).toHaveLength(2);
+    expect(screen.getByRole('link', { name: 'Ver top 15' })).toHaveAttribute(
+      'href',
+      '/flag-ranking',
+    );
   });
 
   it('renders the top fifteen flag ranking page', async () => {
@@ -322,7 +328,9 @@ describe('App', () => {
       screen.getByText(/Você ainda pode garantir seus números até o resultado ser divulgado/),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Continuar' })).toBeInTheDocument();
-    expect(screen.queryByText('Sorteio encerrado. Não é mais possível comprar números.')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Sorteio encerrado. Não é mais possível comprar números.'),
+    ).not.toBeInTheDocument();
     expect(mockedTransactionService.quote).not.toHaveBeenCalled();
   });
 
@@ -590,7 +598,9 @@ describe('App', () => {
     await waitFor(() => expect(mockedTransactionService.create).toHaveBeenCalledTimes(1));
 
     expect(screen.getByRole('status')).toHaveTextContent('Redirecionando para o Mercado Pago');
-    expect(screen.getByRole('progressbar', { name: 'Carregando redirecionamento' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('progressbar', { name: 'Carregando redirecionamento' }),
+    ).toBeInTheDocument();
     expect(screen.queryByText('Pagamento em andamento')).not.toBeInTheDocument();
     expect(mockedTransactionService.create).toHaveBeenCalledWith(
       {
@@ -628,7 +638,7 @@ describe('App', () => {
 
     await user.type(screen.getByLabelText('Mensagem para o casal (opcional)'), '  Felicidades!  ');
     expect(screen.getByText('16/280')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Revisar dados' }));
+    await user.click(screen.getByRole('button', { name: 'Continuar' }));
     await confirmMercadoPagoRedirect(user);
 
     await waitFor(() => expect(mockedTransactionService.create).toHaveBeenCalledTimes(1));
@@ -993,9 +1003,10 @@ describe('App', () => {
 
     await user.click(openMenuButton);
 
-    expect(
-      screen.getByRole('button', { name: 'Fechar menu administrativo' }),
-    ).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('button', { name: 'Fechar menu administrativo' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
     expect(adminNavigation).toHaveClass('flex');
     expect(screen.getByRole('link', { name: 'Dinheiro' })).toHaveAttribute(
       'href',
@@ -1005,10 +1016,7 @@ describe('App', () => {
       'href',
       '/admin/settings',
     );
-    expect(screen.getByRole('link', { name: 'Sorteio' })).toHaveAttribute(
-      'href',
-      '/admin/draw',
-    );
+    expect(screen.getByRole('link', { name: 'Sorteio' })).toHaveAttribute('href', '/admin/draw');
   });
 
   it('lists admin transactions with phone or name filter', async () => {
@@ -1040,6 +1048,32 @@ describe('App', () => {
         sort: 'createdAt,desc',
       }),
     );
+  });
+
+  it('limits the cashier profile to cash registration and transaction lookup without values', async () => {
+    storeAdminSession(
+      createAdminSession({
+        accessToken: 'jwt-token',
+        expiresIn: 3600,
+        roles: ['CASHIER'],
+        tokenType: 'Bearer',
+      }),
+    );
+
+    renderApp('/admin');
+
+    expect(await screen.findByText('Guest User')).toBeInTheDocument();
+    expect(screen.getByText('(11) 99999-9999')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Dinheiro' })).toHaveAttribute(
+      'href',
+      '/admin/cash-payment',
+    );
+    expect(screen.getByRole('button', { name: /Baixar PDF dos n.meros de Guest User/ })).toBeInTheDocument();
+    expect(screen.queryByText('Receita aprovada')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'ConfiguraÃ§Ãµes' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Sorteio' })).not.toBeInTheDocument();
+    expect(screen.queryByText('R$ 20,00')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Excluir transaÃ§Ã£o' })).not.toBeInTheDocument();
   });
 
   it('sorts admin transactions by the selected order', async () => {
@@ -1473,29 +1507,39 @@ describe('App', () => {
     expect(mockedRaffleService.draw).not.toHaveBeenCalled();
   });
 
-  it('shows suspense and runs raffle draw when no result exists', async () => {
-    const user = userEvent.setup();
-    storeAdminSession(
-      createAdminSession({ accessToken: 'jwt-token', expiresIn: 3600, tokenType: 'Bearer' }),
-    );
-    mockedRaffleService.getResult.mockRejectedValue({ status: 404 });
-    mockedRaffleService.draw.mockResolvedValue({
-      drawnAt: '2026-07-30T12:00:00Z',
-      winnerName: 'Winner Guest',
-      winningNumber: '00042',
-    });
+  it('ends the reveal animation on the winning number', async () => {
+    vi.useFakeTimers();
+    const setCandidate = vi.fn();
+    const winnerCandidate = {
+      luckyNumber: '00042',
+      participantFlagEmoji: 'Canada flag',
+      participantFlagName: 'Canada',
+    };
+    let isResolved = false;
 
-    renderApp('/admin/draw');
+    try {
+      const animation = runRevealAnimation(
+        [
+          {
+            luckyNumber: '00001',
+            participantFlagEmoji: 'Brazil flag',
+            participantFlagName: 'Brasil',
+          },
+          winnerCandidate,
+        ],
+        winnerCandidate,
+        setCandidate,
+      ).then(() => {
+        isResolved = true;
+      });
 
-    await user.click(await screen.findByRole('button', { name: 'Sortear vencedor' }));
-    await user.click(screen.getByRole('button', { name: 'Confirmar' }));
+      await vi.advanceTimersByTimeAsync(20_000);
+      await animation;
 
-    expect(await screen.findByText('Sorteando entre os números')).toBeInTheDocument();
-    expect(mockedRaffleService.getEligibleNumbers).toHaveBeenCalledTimes(1);
-
-    await waitFor(() => expect(mockedRaffleService.draw).toHaveBeenCalledTimes(1), {
-      timeout: 7000,
-    });
-    expect(await screen.findByText('00042')).toBeInTheDocument();
-  }, 8500);
+      expect(isResolved).toBe(true);
+      expect(setCandidate).toHaveBeenLastCalledWith(winnerCandidate);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

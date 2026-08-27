@@ -67,11 +67,30 @@ class AdminTransactionServiceImplTests {
         when(luckyNumberRepository.findByTransactionInOrderByNumberAsc(List.of(transaction)))
                 .thenReturn(List.of(first, second));
 
-        var response = service.list(null, pageable);
+        var response = service.list(null, pageable, true);
 
         assertThat(response.getTotalElements()).isEqualTo(1);
         assertThat(response.getContent().getFirst().externalReference()).isEqualTo("external");
         assertThat(response.getContent().getFirst().luckyNumbers()).containsExactly("00001", "00002");
+    }
+
+    @Test
+    void omitsFinancialValuesForRestrictedProfile() {
+        AdminTransactionServiceImpl service = service();
+        Transaction transaction =
+                new Transaction("guest@example.com", 2, new BigDecimal("20.00"), PaymentStatus.APPROVED, "external");
+        PageRequest pageable = PageRequest.of(0, 20);
+        PageRequest effectivePageable =
+                PageRequest.of(0, 20, org.springframework.data.domain.Sort.Direction.DESC, "createdAt");
+        when(transactionRepository.findAll(effectivePageable))
+                .thenReturn(new PageImpl<>(List.of(transaction), effectivePageable, 1));
+        when(luckyNumberRepository.findByTransactionInOrderByNumberAsc(List.of(transaction)))
+                .thenReturn(List.of());
+
+        var response = service.list(null, pageable, false);
+
+        assertThat(response.getContent().getFirst().totalAmount()).isNull();
+        assertThat(response.getContent().getFirst().quantity()).isEqualTo(2);
     }
 
     @Test
@@ -110,7 +129,7 @@ class AdminTransactionServiceImplTests {
         when(luckyNumberRepository.findByTransactionInOrderByNumberAsc(List.of(transaction)))
                 .thenReturn(List.of());
 
-        var response = service.list("(11) 99999-9999", pageable);
+        var response = service.list("(11) 99999-9999", pageable, true);
 
         assertThat(response.getContent().getFirst().email()).isEqualTo("guest@example.com");
         assertThat(response.getContent().getFirst().luckyNumbers()).isEmpty();

@@ -69,7 +69,7 @@ class AdminTransactionControllerTests {
         when(adminTransactionService.getSummary())
                 .thenReturn(new AdminTransactionSummaryResponse(12, 48, new BigDecimal("480.00")));
 
-        mockMvc.perform(get("/transactions/summary").with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+        mockMvc.perform(get("/transactions/summary").with(jwt().authorities(new SimpleGrantedAuthority("ROLE_MASTER"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalTransactions").value(12))
                 .andExpect(jsonPath("$.approvedLuckyNumbers").value(48))
@@ -78,7 +78,7 @@ class AdminTransactionControllerTests {
 
     @Test
     void listReturnsPagedTransactionsForAdmin() throws Exception {
-        when(adminTransactionService.list(eq("guest"), any(Pageable.class)))
+        when(adminTransactionService.list(eq("guest"), any(Pageable.class), eq(true)))
                 .thenReturn(new PageImpl<>(List.of(new AdminTransactionResponse(
                         "external",
                         OffsetDateTime.parse("2026-08-14T18:00:00-03:00"),
@@ -94,12 +94,39 @@ class AdminTransactionControllerTests {
 
         mockMvc.perform(get("/transactions")
                         .param("query", "guest")
-                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_MASTER"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].externalReference").value("external"))
                 .andExpect(jsonPath("$.content[0].createdAt").value("2026-08-14T18:00:00-03:00"))
                 .andExpect(jsonPath("$.content[0].name").value("Guest User"))
                 .andExpect(jsonPath("$.content[0].status").value("APROVADO"))
+                .andExpect(jsonPath("$.content[0].luckyNumbers[0]").value("00001"));
+    }
+
+    @Test
+    void listReturnsPagedTransactionsForCashierWithoutFinancialValues() throws Exception {
+        when(adminTransactionService.list(eq("11999999999"), any(Pageable.class), eq(false)))
+                .thenReturn(new PageImpl<>(List.of(new AdminTransactionResponse(
+                        "external",
+                        OffsetDateTime.parse("2026-08-14T18:00:00-03:00"),
+                        "Guest User",
+                        "11999999999",
+                        null,
+                        PaymentMethod.CASH,
+                        null,
+                        2,
+                        null,
+                        PaymentStatusResponse.APROVADO,
+                        List.of("00001", "00002")))));
+
+        mockMvc.perform(get("/transactions")
+                        .param("query", "11999999999")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CASHIER"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].externalReference").value("external"))
+                .andExpect(jsonPath("$.content[0].name").value("Guest User"))
+                .andExpect(jsonPath("$.content[0].phone").value("11999999999"))
+                .andExpect(jsonPath("$.content[0].totalAmount").value(org.hamcrest.Matchers.nullValue()))
                 .andExpect(jsonPath("$.content[0].luckyNumbers[0]").value("00001"));
     }
 
@@ -112,7 +139,8 @@ class AdminTransactionControllerTests {
                         "Guest User",
                         "Felicidades ao casal!"))));
 
-        mockMvc.perform(get("/transactions/messages").with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+        mockMvc.perform(get("/transactions/messages")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_MASTER"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].externalReference").value("external"))
                 .andExpect(jsonPath("$.content[0].name").value("Guest User"))
@@ -122,9 +150,10 @@ class AdminTransactionControllerTests {
     @Test
     void listUsesNewestTransactionsFirstByDefault() throws Exception {
         ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
-        when(adminTransactionService.list(eq(null), pageableCaptor.capture())).thenReturn(new PageImpl<>(List.of()));
+        when(adminTransactionService.list(eq(null), pageableCaptor.capture(), eq(true)))
+                .thenReturn(new PageImpl<>(List.of()));
 
-        mockMvc.perform(get("/transactions").with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+        mockMvc.perform(get("/transactions").with(jwt().authorities(new SimpleGrantedAuthority("ROLE_MASTER"))))
                 .andExpect(status().isOk());
 
         Sort.Order order = pageableCaptor.getValue().getSort().getOrderFor("createdAt");
@@ -135,11 +164,12 @@ class AdminTransactionControllerTests {
     @Test
     void listAcceptsAdminSortFilter() throws Exception {
         ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
-        when(adminTransactionService.list(eq(null), pageableCaptor.capture())).thenReturn(new PageImpl<>(List.of()));
+        when(adminTransactionService.list(eq(null), pageableCaptor.capture(), eq(true)))
+                .thenReturn(new PageImpl<>(List.of()));
 
         mockMvc.perform(get("/transactions")
                         .param("sort", "totalAmount,desc")
-                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_MASTER"))))
                 .andExpect(status().isOk());
 
         Sort.Order order = pageableCaptor.getValue().getSort().getOrderFor("totalAmount");
@@ -178,7 +208,7 @@ class AdminTransactionControllerTests {
                         .header("Idempotency-Key", "cash-key-123")
                         .contentType("application/json")
                         .content("{\"name\":\"Guest User\",\"phone\":\"(11) 99999-9999\",\"quantity\":2}")
-                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_MASTER"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.externalReference").value("external"))
                 .andExpect(jsonPath("$.recoveryCode").value("4821"))
@@ -192,11 +222,41 @@ class AdminTransactionControllerTests {
     }
 
     @Test
+    void createCashTransactionReturnsApprovedNumbersForCashierWithoutFinancialValues() throws Exception {
+        when(adminTransactionService.createCashTransaction(eq("cash-key-123"), any()))
+                .thenReturn(new CashTransactionCreateResponse(
+                        "external",
+                        "4821",
+                        "Guest User",
+                        "11999999999",
+                        null,
+                        PaymentMethod.CASH,
+                        PaymentStatusResponse.APROVADO,
+                        2,
+                        new BigDecimal("20.00"),
+                        "Brasil",
+                        "ðŸ‡§ðŸ‡·",
+                        List.of("00003", "00004"),
+                        List.of(),
+                        2));
+
+        mockMvc.perform(post("/transactions/cash")
+                        .header("Idempotency-Key", "cash-key-123")
+                        .contentType("application/json")
+                        .content("{\"name\":\"Guest User\",\"phone\":\"(11) 99999-9999\",\"quantity\":2}")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CASHIER"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.externalReference").value("external"))
+                .andExpect(jsonPath("$.totalAmount").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.luckyNumbers[0]").value("00003"));
+    }
+
+    @Test
     void createCashTransactionRequiresIdempotencyKeyForAdmin() throws Exception {
         mockMvc.perform(post("/transactions/cash")
                         .contentType("application/json")
                         .content("{\"name\":\"Guest User\",\"phone\":\"(11) 99999-9999\",\"quantity\":2}")
-                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_MASTER"))))
                 .andExpect(status().isBadRequest());
     }
 
@@ -212,13 +272,42 @@ class AdminTransactionControllerTests {
                 .thenReturn("%PDF".getBytes());
 
         mockMvc.perform(get("/transactions/external-reference-123/participant-lucky-numbers.pdf")
-                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_MASTER"))))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Type", "application/pdf"))
                 .andExpect(header().string("Content-Disposition", org.hamcrest.Matchers.containsString("attachment")))
                 .andExpect(header().string(
                                 "Content-Disposition",
                                 org.hamcrest.Matchers.containsString("Numeros_do_participante_external.pdf")));
+    }
+
+    @Test
+    void downloadsParticipantLuckyNumbersPdfForCashier() throws Exception {
+        when(luckyNumberPdfService.generateForParticipant("external-reference-123"))
+                .thenReturn("%PDF".getBytes());
+
+        mockMvc.perform(get("/transactions/external-reference-123/participant-lucky-numbers.pdf")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CASHIER"))))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", "application/pdf"));
+    }
+
+    @Test
+    void cashierCannotAccessMasterOnlyTransactionActions() throws Exception {
+        mockMvc.perform(get("/transactions/summary")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CASHIER"))))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/transactions/messages")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CASHIER"))))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(delete("/transactions/cash-reference")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CASHIER"))))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(put("/transactions/external/capacity-review")
+                        .contentType("application/json")
+                        .content("{\"decision\":\"CONTRIBUTION_WITHOUT_NUMBERS\"}")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CASHIER"))))
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -229,7 +318,7 @@ class AdminTransactionControllerTests {
     @Test
     void deleteCashTransactionReturnsNoContentForAdmin() throws Exception {
         mockMvc.perform(delete("/transactions/cash-reference")
-                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_MASTER"))))
                 .andExpect(status().isNoContent());
 
         verify(adminTransactionService).deleteCashTransaction("cash-reference");
@@ -248,7 +337,7 @@ class AdminTransactionControllerTests {
         mockMvc.perform(put("/transactions/external/capacity-review")
                         .contentType("application/json")
                         .content("{\"decision\":\"CONTRIBUTION_WITHOUT_NUMBERS\"}")
-                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_MASTER"))))
                 .andExpect(status().isNoContent());
 
         verify(adminTransactionService)
