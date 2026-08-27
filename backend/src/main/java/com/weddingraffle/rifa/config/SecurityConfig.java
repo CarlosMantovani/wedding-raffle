@@ -67,32 +67,33 @@ public class SecurityConfig {
                         .requestMatchers(PUBLIC_ENDPOINTS)
                         .permitAll()
                         .requestMatchers(HttpMethod.POST, "/raffle/draw")
-                        .hasRole("ADMIN")
+                        .hasRole("MASTER")
                         .requestMatchers(HttpMethod.POST, "/transactions/cash")
-                        .hasRole("ADMIN")
+                        .hasAnyRole("MASTER", "CASHIER")
                         .requestMatchers(
                                 HttpMethod.GET, "/transactions/{externalReference}/participant-lucky-numbers.pdf")
-                        .hasRole("ADMIN")
+                        .hasAnyRole("MASTER", "CASHIER")
                         .requestMatchers(HttpMethod.DELETE, "/transactions/{externalReference}")
-                        .hasRole("ADMIN")
+                        .hasRole("MASTER")
                         .requestMatchers(HttpMethod.PUT, "/transactions/{externalReference}/capacity-review")
-                        .hasRole("ADMIN")
+                        .hasRole("MASTER")
                         .requestMatchers(HttpMethod.GET, "/admin/raffle-config")
-                        .hasRole("ADMIN")
+                        .hasRole("MASTER")
                         .requestMatchers(HttpMethod.PUT, "/admin/raffle-config/unit-price")
-                        .hasRole("ADMIN")
+                        .hasRole("MASTER")
                         .requestMatchers(HttpMethod.PUT, "/admin/raffle-config/scheduled-at")
-                        .hasRole("ADMIN")
+                        .hasRole("MASTER")
                         .requestMatchers(HttpMethod.PUT, "/admin/raffle-config/combos/{comboId}")
-                        .hasRole("ADMIN")
+                        .hasRole("MASTER")
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/raffle/result",
                                 "/raffle/eligible-numbers",
-                                "/transactions",
                                 "/transactions/summary",
                                 "/transactions/messages")
-                        .hasRole("ADMIN")
+                        .hasRole("MASTER")
+                        .requestMatchers(HttpMethod.GET, "/transactions")
+                        .hasAnyRole("MASTER", "CASHIER")
                         .anyRequest()
                         .denyAll())
                 .oauth2ResourceServer(

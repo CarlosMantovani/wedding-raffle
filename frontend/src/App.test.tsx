@@ -1050,6 +1050,32 @@ describe('App', () => {
     );
   });
 
+  it('limits the cashier profile to cash registration and transaction lookup without values', async () => {
+    storeAdminSession(
+      createAdminSession({
+        accessToken: 'jwt-token',
+        expiresIn: 3600,
+        roles: ['CASHIER'],
+        tokenType: 'Bearer',
+      }),
+    );
+
+    renderApp('/admin');
+
+    expect(await screen.findByText('Guest User')).toBeInTheDocument();
+    expect(screen.getByText('(11) 99999-9999')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Dinheiro' })).toHaveAttribute(
+      'href',
+      '/admin/cash-payment',
+    );
+    expect(screen.getByRole('button', { name: /Baixar PDF dos n.meros de Guest User/ })).toBeInTheDocument();
+    expect(screen.queryByText('Receita aprovada')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'ConfiguraÃ§Ãµes' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Sorteio' })).not.toBeInTheDocument();
+    expect(screen.queryByText('R$ 20,00')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Excluir transaÃ§Ã£o' })).not.toBeInTheDocument();
+  });
+
   it('sorts admin transactions by the selected order', async () => {
     const user = userEvent.setup();
     storeAdminSession(

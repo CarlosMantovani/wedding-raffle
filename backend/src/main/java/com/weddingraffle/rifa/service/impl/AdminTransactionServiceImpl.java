@@ -31,7 +31,9 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -71,12 +73,13 @@ public class AdminTransactionServiceImpl implements AdminTransactionService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<AdminTransactionResponse> list(String query, Pageable pageable) {
+    public Page<AdminTransactionResponse> list(String query, Pageable pageable, boolean includeFinancialValues) {
+        Pageable effectivePageable = includeFinancialValues ? pageable : withoutFinancialSorting(pageable);
         Page<Transaction> transactions = StringUtils.hasText(query)
-                ? transactionRepository.findByNameOrPhone(query.trim(), normalizePhoneSearch(query), pageable)
-                : transactionRepository.findAll(pageable);
+                ? transactionRepository.findByNameOrPhone(query.trim(), normalizePhoneSearch(query), effectivePageable)
+                : transactionRepository.findAll(effectivePageable);
         Map<Transaction, List<String>> numbersByTransaction = numbersByTransaction(transactions.getContent());
-        return transactions.map(transaction -> toResponse(transaction, numbersByTransaction));
+        return transactions.map(transaction -> toResponse(transaction, numbersByTransaction, includeFinancialValues));
     }
 
     @Override
@@ -183,7 +186,9 @@ public class AdminTransactionServiceImpl implements AdminTransactionService {
     }
 
     private static AdminTransactionResponse toResponse(
-            Transaction transaction, Map<Transaction, List<String>> numbersByTransaction) {
+            Transaction transaction,
+            Map<Transaction, List<String>> numbersByTransaction,
+            boolean includeFinancialValues) {
         return new AdminTransactionResponse(
                 transaction.getExternalReference(),
                 transaction.getCreatedAt(),
@@ -194,8 +199,16 @@ public class AdminTransactionServiceImpl implements AdminTransactionService {
                 transaction.getPaymentMethod(),
                 transaction.getCapacityReviewStatus(),
                 transaction.getQuantity(),
-                transaction.getTotalAmount(),
+                includeFinancialValues ? transaction.getTotalAmount() : null,
                 PaymentStatusResponse.from(transaction.getStatus()),
                 numbersByTransaction.getOrDefault(transaction, List.of()));
+    }
+
+    private static Pageable withoutFinancialSorting(Pageable pageable) {
+        List<Sort.Order> orders = pageable.getSort().stream()
+                .filter(order -> !"totalAmount".equals(order.getProperty()))
+                .toList();
+        Sort sort = orders.isEmpty() ? Sort.by(Sort.Direction.DESC, "createdAt") : Sort.by(orders);
+        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), sort);
     }
 }

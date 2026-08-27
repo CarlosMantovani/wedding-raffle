@@ -26,7 +26,7 @@ const SORT_OPTIONS = [
 type AdminTransactionSort = (typeof SORT_OPTIONS)[number]['value'];
 
 export function AdminDashboardPage() {
-  const { logout } = useAuth();
+  const { isMaster, logout } = useAuth();
   const queryClient = useQueryClient();
   const [queryFilter, setQueryFilter] = useState('');
   const [submittedQueryFilter, setSubmittedQueryFilter] = useState('');
@@ -42,6 +42,7 @@ export function AdminDashboardPage() {
   const summaryQuery = useQuery({
     queryKey: ['admin-transaction-summary'],
     queryFn: () => adminTransactionService.getSummary(),
+    enabled: isMaster,
   });
   const deleteCashTransactionMutation = useMutation({
     mutationFn: (externalReference: string) =>
@@ -107,22 +108,28 @@ export function AdminDashboardPage() {
               Dinheiro
             </a>
             <a
-              className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/15"
+              aria-hidden={!isMaster}
+              className={`${isMaster ? 'inline-flex' : 'hidden'} min-h-10 items-center gap-2 rounded-lg bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/15`}
               href="/admin/settings"
+              tabIndex={isMaster ? undefined : -1}
             >
               <Settings aria-hidden="true" className="h-4 w-4" />
               Configurações
             </a>
             <a
-              className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/15"
+              aria-hidden={!isMaster}
+              className={`${isMaster ? 'inline-flex' : 'hidden'} min-h-10 items-center gap-2 rounded-lg bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/15`}
               href="/admin/messages"
+              tabIndex={isMaster ? undefined : -1}
             >
               <MessageSquareText aria-hidden="true" className="h-4 w-4" />
               Mensagens
             </a>
             <a
-              className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-gold px-4 py-2 text-sm font-bold text-charcoal transition hover:bg-gold/90"
+              aria-hidden={!isMaster}
+              className={`${isMaster ? 'inline-flex' : 'hidden'} min-h-10 items-center gap-2 rounded-lg bg-gold px-4 py-2 text-sm font-bold text-charcoal transition hover:bg-gold/90`}
               href="/admin/draw"
+              tabIndex={isMaster ? undefined : -1}
             >
               <Gift aria-hidden="true" className="h-4 w-4" />
               Sorteio
@@ -140,9 +147,11 @@ export function AdminDashboardPage() {
       </header>
 
       <section className="mx-auto max-w-6xl px-6 py-8">
-        <MetricsSummary areValuesVisible={areMetricsVisible} onToggleVisibility={() => setAreMetricsVisible((current) => !current)} summary={summaryQuery.data} />
+        {isMaster ? (
+          <MetricsSummary areValuesVisible={areMetricsVisible} onToggleVisibility={() => setAreMetricsVisible((current) => !current)} summary={summaryQuery.data} />
+        ) : null}
 
-        <Card className="mt-6 overflow-hidden">
+        <Card className={`${isMaster ? 'mt-6' : ''} overflow-hidden`}>
           <form className="mb-6 flex flex-col gap-3 md:flex-row md:items-end" onSubmit={submitFilter}>
             <div className="flex-1">
               <TextInput
@@ -166,7 +175,7 @@ export function AdminDashboardPage() {
                 }}
                 value={sort}
               >
-                {SORT_OPTIONS.map((option) => (
+                {SORT_OPTIONS.filter((option) => isMaster || !option.value.startsWith('totalAmount')).map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
@@ -195,7 +204,9 @@ export function AdminDashboardPage() {
 
           {transactions.length > 0 ? (
             <TransactionTable
-              areSensitiveValuesVisible={areMetricsVisible}
+              areSensitiveValuesVisible={isMaster ? areMetricsVisible : true}
+              canDeleteCashTransactions={isMaster}
+              canResolveCapacityReview={isMaster}
               deletingExternalReference={deleteCashTransactionMutation.variables ?? null}
               downloadingPdfExternalReference={participantPdfMutation.variables?.externalReference ?? null}
               isDeleting={deleteCashTransactionMutation.isPending}
@@ -216,6 +227,7 @@ export function AdminDashboardPage() {
                 capacityReviewMutation.mutate({ decision, transaction })
               }
               resolvingCapacityReviewReference={capacityReviewMutation.variables?.transaction.externalReference ?? null}
+              showFinancialValues={isMaster}
               transactions={transactions}
             />
           ) : null}
@@ -308,6 +320,8 @@ function MetricsSummary({
 
 function TransactionTable({
   areSensitiveValuesVisible,
+  canDeleteCashTransactions,
+  canResolveCapacityReview,
   deletingExternalReference,
   downloadingPdfExternalReference,
   isDeleting,
@@ -317,9 +331,12 @@ function TransactionTable({
   onDownloadParticipantPdf,
   onResolveCapacityReview,
   resolvingCapacityReviewReference,
+  showFinancialValues,
   transactions,
 }: {
   areSensitiveValuesVisible: boolean;
+  canDeleteCashTransactions: boolean;
+  canResolveCapacityReview: boolean;
   deletingExternalReference: string | null;
   downloadingPdfExternalReference: string | null;
   isDeleting: boolean;
@@ -329,6 +346,7 @@ function TransactionTable({
   onDownloadParticipantPdf: (transaction: AdminTransactionResponse) => void;
   onResolveCapacityReview: (transaction: AdminTransactionResponse, decision: CapacityReviewDecision) => void;
   resolvingCapacityReviewReference: string | null;
+  showFinancialValues: boolean;
   transactions: AdminTransactionResponse[];
 }) {
   const [expandedTransactions, setExpandedTransactions] = useState<Set<string>>(() => new Set());
@@ -357,7 +375,7 @@ function TransactionTable({
             <th className="px-3 py-3 font-bold">Contato</th>
             <th className="px-3 py-3 font-bold">Método</th>
             <th className="px-3 py-3 font-bold">Qtd.</th>
-            <th className="px-3 py-3 font-bold">Total</th>
+            {showFinancialValues ? <th className="px-3 py-3 font-bold">Total</th> : null}
             <th className="px-3 py-3 font-bold">Status</th>
             <th className="px-3 py-3 font-bold">Números</th>
             <th className="px-3 py-3 text-right font-bold">Ações</th>
@@ -397,7 +415,9 @@ function TransactionTable({
               </td>
               <td className="px-3 py-4 text-warm-gray">{transaction.paymentMethod === 'CASH' ? 'Dinheiro' : 'Mercado Pago'}</td>
               <td className="px-3 py-4 text-warm-gray">{areSensitiveValuesVisible ? transaction.quantity : maskedValue}</td>
-              <td className="px-3 py-4 text-warm-gray">{areSensitiveValuesVisible ? formatCurrency(transaction.totalAmount) : maskedValue}</td>
+              {showFinancialValues ? (
+                <td className="px-3 py-4 text-warm-gray">{areSensitiveValuesVisible && transaction.totalAmount ? formatCurrency(transaction.totalAmount) : maskedValue}</td>
+              ) : null}
               <td className="px-3 py-4">
                 <StatusBadge capacityReviewStatus={transaction.capacityReviewStatus} status={transaction.status} />
               </td>
@@ -426,7 +446,7 @@ function TransactionTable({
               </td>
               <td className="px-3 py-4 text-right">
                 <div className="flex items-center justify-end gap-2">
-                {transaction.capacityReviewStatus === 'PENDING' ? (
+                {canResolveCapacityReview && transaction.capacityReviewStatus === 'PENDING' ? (
                   <div className="flex min-w-44 flex-col gap-2">
                     <button
                       className="rounded-lg border border-terracotta/30 px-3 py-2 text-xs font-bold text-terracotta-dark transition hover:bg-blush disabled:opacity-50"
@@ -472,7 +492,7 @@ function TransactionTable({
                   >
                     <Download aria-hidden="true" className="h-4 w-4" />
                   </button>
-                {transaction.paymentMethod === 'CASH' ? (
+                {canDeleteCashTransactions && transaction.paymentMethod === 'CASH' ? (
                   <button
                     aria-label={
                       areSensitiveValuesVisible ? `Excluir transação de ${transaction.name}` : 'Excluir transação'

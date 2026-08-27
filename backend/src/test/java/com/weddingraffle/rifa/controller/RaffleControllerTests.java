@@ -49,7 +49,7 @@ class RaffleControllerTests {
         when(raffleService.draw())
                 .thenReturn(new RaffleDrawResponse("00001", "Guest User", OffsetDateTime.now(), "Brasil", "🇧🇷"));
 
-        mockMvc.perform(post("/raffle/draw").with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+        mockMvc.perform(post("/raffle/draw").with(jwt().authorities(new SimpleGrantedAuthority("ROLE_MASTER"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.winningNumber").value("00001"))
                 .andExpect(jsonPath("$.winnerName").value("Guest User"))
@@ -61,7 +61,7 @@ class RaffleControllerTests {
     void resultReturnsWinnerForAdmin() throws Exception {
         when(raffleService.getResult()).thenReturn(new RaffleDrawResponse("00001", "Guest User", OffsetDateTime.now()));
 
-        mockMvc.perform(get("/raffle/result").with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+        mockMvc.perform(get("/raffle/result").with(jwt().authorities(new SimpleGrantedAuthority("ROLE_MASTER"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.winningNumber").value("00001"));
     }
@@ -74,7 +74,7 @@ class RaffleControllerTests {
                         new RaffleCandidateResponse("00002", "Canada", "🇨🇦")));
 
         mockMvc.perform(get("/raffle/eligible-numbers")
-                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_MASTER"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].luckyNumber").value("00001"))
                 .andExpect(jsonPath("$[0].participantFlagName").value("Brasil"))

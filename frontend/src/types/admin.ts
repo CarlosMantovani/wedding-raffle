@@ -14,7 +14,7 @@ export interface AdminTransactionResponse {
   paymentMethod: PaymentMethod;
   capacityReviewStatus?: CapacityReviewStatus | null;
   quantity: number;
-  totalAmount: string;
+  totalAmount: string | null;
   status: PaymentStatus;
   luckyNumbers: string[];
 }
@@ -41,7 +41,7 @@ export interface CashTransactionCreateResponse {
   email: string | null;
   paymentMethod: PaymentMethod;
   quantity: number;
-  totalAmount: string;
+  totalAmount: string | null;
   status: PaymentStatus;
   participantFlagName?: string | null;
   participantFlagEmoji?: string | null;
