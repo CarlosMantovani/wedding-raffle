@@ -11,6 +11,7 @@ import com.weddingraffle.rifa.entity.PaymentStatus;
 import com.weddingraffle.rifa.entity.Transaction;
 import com.weddingraffle.rifa.exception.InvalidRaffleStateException;
 import com.weddingraffle.rifa.exception.ResourceNotFoundException;
+import com.weddingraffle.rifa.integration.CheckoutPreferenceRequest;
 import com.weddingraffle.rifa.integration.CheckoutPreferenceResponse;
 import com.weddingraffle.rifa.integration.PaymentProviderClient;
 import com.weddingraffle.rifa.integration.PaymentProviderPayment;
@@ -23,6 +24,7 @@ import com.weddingraffle.rifa.service.PurchasePrice;
 import com.weddingraffle.rifa.service.RaffleConfigService;
 import com.weddingraffle.rifa.service.RafflePricingService;
 import com.weddingraffle.rifa.service.TransactionService;
+import com.weddingraffle.rifa.util.CpfValidator;
 import com.weddingraffle.rifa.util.ParticipantNormalizer;
 import com.weddingraffle.rifa.util.PurchaseRequestHasher;
 import java.math.BigDecimal;
@@ -92,6 +94,7 @@ public class TransactionServiceImpl implements TransactionService {
         String phone = ParticipantNormalizer.normalizePhone(request.phone());
         String email = ParticipantNormalizer.normalizeEmail(request.email());
         String giftMessage = ParticipantNormalizer.normalizeGiftMessage(request.giftMessage());
+        String cpf = CpfValidator.normalize(request.cpf());
         String requestHash =
                 purchaseRequestHasher.online(name, phone, email, giftMessage, request.quantity(), request.comboId());
 
@@ -110,8 +113,10 @@ public class TransactionServiceImpl implements TransactionService {
             return attempt.completedResponse();
         }
 
+        CheckoutPreferenceRequest preferenceRequest = attempt.checkoutPreferenceRequest()
+                .withPaymentContext(cpf, request.deviceId(), raffleConfigService.getWeddingEventAt());
         CheckoutPreferenceResponse preference =
-                paymentProviderClient.createPreference(attempt.checkoutPreferenceRequest(), normalizedIdempotencyKey);
+                paymentProviderClient.createPreference(preferenceRequest, normalizedIdempotencyKey);
         TransactionCreateResponse response =
                 purchaseIntentService.completeOnline(normalizedIdempotencyKey, requestHash, preference);
         LOGGER.info("Completed pending transaction checkout with externalReference={}", response.externalReference());

@@ -12,9 +12,15 @@ import { FlagEmoji } from '../../components/ui/FlagEmoji';
 import { TextInput } from '../../components/ui/TextInput';
 import { publicMessages } from '../../content/messages';
 import { homeService } from '../../services/homeService';
+import { getMercadoPagoDeviceId } from '../../services/mercadoPagoSecurity';
 import { transactionService } from '../../services/transactionService';
 import type { RaffleResult } from '../../types/home';
-import type { RaffleComboResponse, TransactionStatusResponse } from '../../types/transaction';
+import type {
+  RaffleComboResponse,
+  TransactionCreateRequest,
+  TransactionStatusResponse,
+} from '../../types/transaction';
+import { formatCpf, normalizeCpf } from '../../utils/cpf';
 import { isPastDateTime } from '../../utils/dateTime';
 import { formatCurrency } from '../../utils/formatters';
 import { clearIdempotencyKey, getOrCreateIdempotencyKey } from '../../utils/idempotency';
@@ -32,7 +38,7 @@ import { buyerSchema, type BuyerFormData } from './schemas';
 const CHECKOUT_IDEMPOTENCY_ACTION = 'mercado-pago-checkout';
 const GIFT_MESSAGE_MAX_LENGTH = 280;
 type PurchaseStep = 'quantity' | 'message' | 'review';
-type BuyerData = { email?: string; name: string; phone: string };
+type BuyerData = { cpf: string; email?: string; name: string; phone: string };
 
 export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolean }) {
   const [buyer, setBuyer] = useState<BuyerData | null>(null);
@@ -52,7 +58,7 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
     handleSubmit,
     register,
   } = useForm<BuyerFormData>({
-    defaultValues: { email: '', name: '', phone: '' },
+    defaultValues: { cpf: '', email: '', name: '', phone: '' },
     mode: 'onChange',
     resolver: zodResolver(buyerSchema),
   });
@@ -71,7 +77,9 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
     queryKey: ['transaction-pricing', buyer],
     queryFn: () =>
       transactionService.quote({
-        ...buyer!,
+        name: buyer!.name,
+        phone: buyer!.phone,
+        ...(buyer!.email ? { email: buyer!.email } : {}),
         quantity: 1,
       }),
     staleTime: 5 * 60 * 1000,
@@ -134,6 +142,7 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
     const email = data.email.trim();
     setBuyer({
       ...(email ? { email } : {}),
+      cpf: normalizeCpf(data.cpf),
       name: data.name.trim(),
       phone: normalizePhoneNumber(data.phone),
     });
@@ -172,9 +181,13 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
       quantity,
       ...(selectedCombo ? { comboId: selectedCombo.id } : {}),
     };
+    const deviceId = getMercadoPagoDeviceId();
     createTransactionMutation.mutate({
-      idempotencyKey: getOrCreateIdempotencyKey(CHECKOUT_IDEMPOTENCY_ACTION, request),
-      request,
+      idempotencyKey: getOrCreateIdempotencyKey(
+        CHECKOUT_IDEMPOTENCY_ACTION,
+        toCheckoutIdempotencyPayload(request),
+      ),
+      request: { ...request, ...(deviceId ? { deviceId } : {}) },
     });
   };
 
@@ -207,12 +220,12 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
       <div className="mx-auto flex w-full max-w-[480px] flex-col gap-7">
         <header className="text-center">
           <BrandMark />
-            <p className="mt-2 font-serif text-2xl font-bold leading-tight text-charcoal">
-                Presente <span className="italic text-gold">Premiado</span>
-            </p>
-            <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-warm-gray">
-                Participe do sorteio e faça parte deste presente especial para o casal.
-            </p>
+          <p className="mt-2 font-serif text-2xl font-bold leading-tight text-charcoal">
+            Presente <span className="italic text-gold">Premiado</span>
+          </p>
+          <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-warm-gray">
+            Participe do sorteio e faça parte deste presente especial para o casal.
+          </p>
           <div className="mt-6">
             <GoldDivider />
           </div>
@@ -290,6 +303,21 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
                 {...register('phone', {
                   onChange: (event) => {
                     event.target.value = formatPhoneNumber(event.target.value);
+                  },
+                })}
+              />
+
+              <TextInput
+                autoComplete="off"
+                error={errors.cpf?.message}
+                id="buyer-cpf"
+                inputMode="numeric"
+                label="CPF"
+                maxLength={14}
+                placeholder="000.000.000-00"
+                {...register('cpf', {
+                  onChange: (event) => {
+                    event.target.value = formatCpf(event.target.value);
                   },
                 })}
               />
@@ -377,8 +405,8 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   {availableCombos.map((combo) => (
-                      <ComboCard
-                        combo={combo}
+                    <ComboCard
+                      combo={combo}
                       isSelected={combo.id === selectedCombo?.id}
                       key={combo.id}
                       onSelect={() => selectCombo(combo)}
@@ -426,11 +454,7 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
                 <div className="flex items-center justify-between gap-4">
                   <dt className="text-base font-bold">Total</dt>
                   <dd className="font-serif text-3xl font-bold text-green">
-                    {quoteQuery.isLoading
-                      ? '...'
-                      : totalAmount
-                        ? formatCurrency(totalAmount)
-                        : '-'}
+                    {quoteQuery.isLoading ? '...' : totalAmount ? formatCurrency(totalAmount) : '-'}
                   </dd>
                 </div>
               </dl>
@@ -512,6 +536,10 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
                   <dt className="text-sm text-warm-gray">Telefone</dt>
                   <dd className="text-sm font-semibold">{formatPhoneNumber(buyer.phone)}</dd>
                 </div>
+                <div className="flex items-center justify-between gap-4">
+                  <dt className="text-sm text-warm-gray">CPF</dt>
+                  <dd className="text-sm font-semibold">{formatCpf(buyer.cpf)}</dd>
+                </div>
                 {buyer.email ? (
                   <div className="flex items-center justify-between gap-4">
                     <dt className="text-sm text-warm-gray">E-mail (opcional)</dt>
@@ -528,11 +556,7 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
                 <div className="flex items-center justify-between gap-4">
                   <dt className="text-base font-bold">Total</dt>
                   <dd className="font-serif text-3xl font-bold text-green">
-                    {quoteQuery.isLoading
-                      ? '...'
-                      : totalAmount
-                        ? formatCurrency(totalAmount)
-                        : '-'}
+                    {quoteQuery.isLoading ? '...' : totalAmount ? formatCurrency(totalAmount) : '-'}
                   </dd>
                 </div>
               </dl>
@@ -623,10 +647,7 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
             </p>
           </section>
         )}
-        <RaffleResultPanel
-          isDrawClosed={isDrawClosed}
-          result={raffleResult}
-        />
+        <RaffleResultPanel isDrawClosed={isDrawClosed} result={raffleResult} />
         <FlagRankingPanel
           isLoading={homeSummaryQuery.isLoading}
           ranking={homeSummaryQuery.data?.flagRanking ?? []}
@@ -672,7 +693,18 @@ function multiplyMoney(amount: string | number, quantity: number): string {
 
 interface PurchaseSubmission {
   idempotencyKey: string;
-  request: BuyerData & { giftMessage?: string; quantity: number; comboId?: number };
+  request: TransactionCreateRequest;
+}
+
+function toCheckoutIdempotencyPayload(request: TransactionCreateRequest) {
+  return {
+    ...(request.comboId ? { comboId: request.comboId } : {}),
+    ...(request.email ? { email: request.email } : {}),
+    ...(request.giftMessage ? { giftMessage: request.giftMessage } : {}),
+    name: request.name,
+    phone: request.phone,
+    quantity: request.quantity,
+  };
 }
 
 function RecentCheckoutNotice({

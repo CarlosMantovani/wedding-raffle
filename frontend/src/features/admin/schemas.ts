@@ -34,6 +34,10 @@ export const scheduledDrawSchema = z.object({
   scheduledDrawAt: z.string().min(1, 'Informe a data e horário do sorteio.'),
 });
 
+export const weddingEventSchema = z.object({
+  weddingEventAt: z.string().min(1, 'Informe a data e horário de início do casamento.'),
+});
+
 export const raffleComboSchema = z.object({
   price: z.coerce
     .number({ invalid_type_error: 'Informe um valor válido.' })
@@ -53,4 +57,5 @@ export type AdminLoginFormData = z.infer<typeof adminLoginSchema>;
 export type CashPaymentFormData = z.infer<typeof cashPaymentSchema>;
 export type RaffleConfigFormData = z.infer<typeof raffleConfigSchema>;
 export type ScheduledDrawFormData = z.infer<typeof scheduledDrawSchema>;
+export type WeddingEventFormData = z.infer<typeof weddingEventSchema>;
 export type RaffleComboFormData = z.infer<typeof raffleComboSchema>;
