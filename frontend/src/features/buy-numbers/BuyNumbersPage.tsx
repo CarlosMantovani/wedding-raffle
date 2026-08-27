@@ -490,7 +490,7 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
                 onClick={() => setPurchaseStep('review')}
                 type="button"
               >
-                Revisar dados
+                Continuar
               </Button>
             </div>
           </section>

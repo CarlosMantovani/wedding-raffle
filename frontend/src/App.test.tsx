@@ -92,7 +92,7 @@ function renderApp(path = '/') {
 
 async function advancePurchaseFlowToReview(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('button', { name: 'Continuar' }));
-  await user.click(screen.getByRole('button', { name: 'Revisar dados' }));
+  await user.click(screen.getByRole('button', { name: 'Continuar' }));
 }
 
 async function confirmMercadoPagoRedirect(user: ReturnType<typeof userEvent.setup>) {
@@ -628,7 +628,7 @@ describe('App', () => {
 
     await user.type(screen.getByLabelText('Mensagem para o casal (opcional)'), '  Felicidades!  ');
     expect(screen.getByText('16/280')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Revisar dados' }));
+    await user.click(screen.getByRole('button', { name: 'Continuar' }));
     await confirmMercadoPagoRedirect(user);
 
     await waitFor(() => expect(mockedTransactionService.create).toHaveBeenCalledTimes(1));
