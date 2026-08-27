@@ -18,7 +18,7 @@ export default function AdminApp() {
 
 function AdminRoutes() {
   const [path, setPath] = useState(window.location.pathname);
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isMaster } = useAuth();
 
   useEffect(() => {
     const handleNavigation = () => setPath(window.location.pathname);
@@ -40,7 +40,7 @@ function AdminRoutes() {
     return <AdminLoginPage />;
   }
 
-  if (path === '/admin/draw') {
+  if (path === '/admin/draw' && isMaster) {
     return <AdminDrawPage />;
   }
 
@@ -48,11 +48,11 @@ function AdminRoutes() {
     return <AdminCashPaymentPage />;
   }
 
-  if (path === '/admin/settings') {
+  if (path === '/admin/settings' && isMaster) {
     return <AdminSettingsPage />;
   }
 
-  if (path === '/admin/messages') {
+  if (path === '/admin/messages' && isMaster) {
     return <AdminMessagesPage />;
   }
 

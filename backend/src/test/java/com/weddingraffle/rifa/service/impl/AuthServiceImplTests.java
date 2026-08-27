@@ -36,12 +36,14 @@ class AuthServiceImplTests {
                 .thenReturn(authentication);
         when(jwtService.generateToken(authentication)).thenReturn("jwt-token");
         when(jwtService.expiresInSeconds()).thenReturn(3600L);
+        when(jwtService.roles(authentication)).thenReturn(java.util.List.of("MASTER"));
 
         AuthLoginResponse response = authService.login(request);
 
         assertThat(response.tokenType()).isEqualTo("Bearer");
         assertThat(response.accessToken()).isEqualTo("jwt-token");
         assertThat(response.expiresIn()).isEqualTo(3600);
+        assertThat(response.roles()).containsExactly("MASTER");
 
         ArgumentCaptor<UsernamePasswordAuthenticationToken> captor =
                 ArgumentCaptor.forClass(UsernamePasswordAuthenticationToken.class);

@@ -7,6 +7,7 @@ import type { AdminSession } from '../../types/auth';
 interface AuthContextValue {
   session: AdminSession | null;
   isAuthenticated: boolean;
+  isMaster: boolean;
   refreshSession: () => void;
   logout: () => void;
 }
@@ -20,6 +21,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       session,
       isAuthenticated: Boolean(session),
+      isMaster: session?.roles.includes('MASTER') ?? false,
       refreshSession: () => setSession(getStoredAdminSession()),
       logout: () => {
         clearStoredAdminSession();

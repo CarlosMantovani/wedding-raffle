@@ -175,9 +175,11 @@ export function AdminCashPaymentPage() {
                 <h2 className="mt-2 font-serif text-2xl font-bold">
                   {createCashMutation.data.name}
                 </h2>
-                <p className="mt-1 text-sm text-warm-gray">
-                  {formatCurrency(createCashMutation.data.totalAmount)}
-                </p>
+                {createCashMutation.data.totalAmount ? (
+                  <p className="mt-1 text-sm text-warm-gray">
+                    {formatCurrency(createCashMutation.data.totalAmount)}
+                  </p>
+                ) : null}
                 {createCashMutation.data.participantFlagEmoji &&
                 createCashMutation.data.participantFlagName ? (
                   <div className="mt-4 rounded-lg border border-[#EEE6DF] bg-white/60 px-4 py-3">

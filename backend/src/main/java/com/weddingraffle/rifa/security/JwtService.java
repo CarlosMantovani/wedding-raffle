@@ -2,8 +2,10 @@ package com.weddingraffle.rifa.security;
 
 import com.weddingraffle.rifa.config.AppProperties;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
@@ -14,7 +16,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class JwtService {
 
-    private static final String ADMIN_ROLE = "ADMIN";
+    private static final String ROLE_PREFIX = "ROLE_";
 
     private final JwtEncoder jwtEncoder;
     private final AppProperties appProperties;
@@ -32,7 +34,7 @@ public class JwtService {
                 .issuedAt(issuedAt)
                 .expiresAt(expiresAt)
                 .subject(authentication.getName())
-                .claim("roles", List.of(ADMIN_ROLE))
+                .claim("roles", roles(authentication.getAuthorities()))
                 .build();
 
         JwsHeader headers = JwsHeader.with(MacAlgorithm.HS256).build();
@@ -41,5 +43,18 @@ public class JwtService {
 
     public long expiresInSeconds() {
         return appProperties.jwt().expirationSeconds();
+    }
+
+    public List<String> roles(Authentication authentication) {
+        return roles(authentication.getAuthorities());
+    }
+
+    private static List<String> roles(Collection<? extends GrantedAuthority> authorities) {
+        return authorities.stream()
+                .map(GrantedAuthority::getAuthority)
+                .filter(authority -> authority.startsWith(ROLE_PREFIX))
+                .map(authority -> authority.substring(ROLE_PREFIX.length()))
+                .sorted()
+                .toList();
     }
 }

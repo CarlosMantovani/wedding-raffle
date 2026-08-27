@@ -7,6 +7,7 @@ export function createAdminSession(response: AuthLoginResponse): AdminSession {
     tokenType: response.tokenType,
     accessToken: response.accessToken,
     expiresAt: Date.now() + response.expiresIn * 1000,
+    roles: response.roles ?? ['MASTER'],
   };
 }
 
@@ -21,7 +22,7 @@ export function getStoredAdminSession(): AdminSession | null {
       return null;
     }
 
-    return session;
+    return { ...session, roles: session.roles ?? ['MASTER'] };
   } catch {
     clearStoredAdminSession();
     return null;

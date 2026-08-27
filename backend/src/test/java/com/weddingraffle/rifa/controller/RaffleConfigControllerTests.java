@@ -50,7 +50,7 @@ class RaffleConfigControllerTests {
                 .thenReturn(new RaffleConfigResponse(
                         new BigDecimal("10.00"), null, OffsetDateTime.parse("2026-08-14T18:00:00-03:00")));
 
-        mockMvc.perform(get("/admin/raffle-config").with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+        mockMvc.perform(get("/admin/raffle-config").with(jwt().authorities(new SimpleGrantedAuthority("ROLE_MASTER"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.unitPrice").value(10.00))
                 .andExpect(jsonPath("$.updatedAt").value("2026-08-14T18:00:00-03:00"));
@@ -69,7 +69,7 @@ class RaffleConfigControllerTests {
         mockMvc.perform(put("/admin/raffle-config/unit-price")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"unitPrice\":0}")
-                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_MASTER"))))
                 .andExpect(status().isBadRequest());
     }
 
@@ -82,7 +82,7 @@ class RaffleConfigControllerTests {
         mockMvc.perform(put("/admin/raffle-config/unit-price")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"unitPrice\":15.00}")
-                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_MASTER"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.unitPrice").value(15.00));
     }
@@ -98,7 +98,7 @@ class RaffleConfigControllerTests {
         mockMvc.perform(put("/admin/raffle-config/scheduled-at")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"scheduledDrawAt\":\"2026-09-05T20:00:00-03:00\"}")
-                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_MASTER"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.scheduledDrawAt").value("2026-09-05T20:00:00-03:00"));
     }

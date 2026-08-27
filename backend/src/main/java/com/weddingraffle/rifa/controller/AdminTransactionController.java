@@ -19,6 +19,8 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -62,16 +64,19 @@ public class AdminTransactionController {
     @GetMapping
     public ResponseEntity<Page<AdminTransactionResponse>> list(
             @RequestParam(required = false) String query,
-            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ResponseEntity.ok(adminTransactionService.list(query, pageable));
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
+            Authentication authentication) {
+        return ResponseEntity.ok(adminTransactionService.list(query, pageable, isMaster(authentication)));
     }
 
     @Operation(summary = "Create approved cash transaction for admin")
     @PostMapping("/cash")
     public ResponseEntity<CashTransactionCreateResponse> createCashTransaction(
             @RequestHeader("Idempotency-Key") String idempotencyKey,
-            @Valid @RequestBody CashTransactionCreateRequest request) {
-        return ResponseEntity.ok(adminTransactionService.createCashTransaction(idempotencyKey, request));
+            @Valid @RequestBody CashTransactionCreateRequest request,
+            Authentication authentication) {
+        CashTransactionCreateResponse response = adminTransactionService.createCashTransaction(idempotencyKey, request);
+        return ResponseEntity.ok(isMaster(authentication) ? response : withoutFinancialValues(response));
     }
 
     @Operation(summary = "Download all approved lucky numbers PDF for the transaction participant")
@@ -110,5 +115,30 @@ public class AdminTransactionController {
             return sanitizedReference;
         }
         return sanitizedReference.substring(0, PDF_FILENAME_REFERENCE_LENGTH);
+    }
+
+    private static boolean isMaster(Authentication authentication) {
+        return authentication != null
+                && authentication.getAuthorities().stream()
+                        .map(GrantedAuthority::getAuthority)
+                        .anyMatch("ROLE_MASTER"::equals);
+    }
+
+    private static CashTransactionCreateResponse withoutFinancialValues(CashTransactionCreateResponse response) {
+        return new CashTransactionCreateResponse(
+                response.externalReference(),
+                response.recoveryCode(),
+                response.name(),
+                response.phone(),
+                response.email(),
+                response.paymentMethod(),
+                response.status(),
+                response.quantity(),
+                null,
+                response.participantFlagName(),
+                response.participantFlagEmoji(),
+                response.luckyNumbers(),
+                response.previousLuckyNumbers(),
+                response.totalLuckyNumbers());
     }
 }

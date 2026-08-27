@@ -12,8 +12,6 @@ import org.springframework.stereotype.Service;
 @Service
 public class AdminUserDetailsService implements UserDetailsService {
 
-    private static final String ADMIN_ROLE = "ROLE_ADMIN";
-
     private final AdminUserRepository adminUserRepository;
 
     public AdminUserDetailsService(AdminUserRepository adminUserRepository) {
@@ -27,7 +25,8 @@ public class AdminUserDetailsService implements UserDetailsService {
                 .map(adminUser -> new User(
                         adminUser.getUsername(),
                         adminUser.getPasswordHash(),
-                        List.of(new SimpleGrantedAuthority(ADMIN_ROLE))))
+                        List.of(new SimpleGrantedAuthority(
+                                "ROLE_" + adminUser.getRole().name()))))
                 .orElseThrow(() -> new UsernameNotFoundException("Admin user not found"));
     }
 }
