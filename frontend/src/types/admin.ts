@@ -67,6 +67,7 @@ export interface RaffleCandidateResponse {
 export interface RaffleConfigResponse {
   unitPrice: string;
   scheduledDrawAt: string | null;
+  weddingEventAt: string | null;
   updatedAt: string | null;
   combos: RaffleComboResponse[];
 }
@@ -77,6 +78,10 @@ export interface UnitPriceUpdateRequest {
 
 export interface ScheduledDrawAtUpdateRequest {
   scheduledDrawAt: string;
+}
+
+export interface WeddingEventAtUpdateRequest {
+  weddingEventAt: string;
 }
 
 export interface AdminGiftMessageResponse {

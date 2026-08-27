@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, CalendarClock, Save, Settings } from 'lucide-react';
+import { ArrowLeft, CalendarClock, CalendarDays, Save, Settings } from 'lucide-react';
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 
@@ -17,9 +17,11 @@ import {
   raffleComboSchema,
   raffleConfigSchema,
   scheduledDrawSchema,
+  weddingEventSchema,
   type RaffleComboFormData,
   type RaffleConfigFormData,
   type ScheduledDrawFormData,
+  type WeddingEventFormData,
 } from './schemas';
 
 export function AdminSettingsPage() {
@@ -44,6 +46,16 @@ export function AdminSettingsPage() {
     mode: 'onChange',
     resolver: zodResolver(scheduledDrawSchema),
   });
+  const {
+    formState: { errors: weddingEventErrors, isValid: isWeddingEventValid },
+    handleSubmit: handleWeddingEventSubmit,
+    register: registerWeddingEvent,
+    reset: resetWeddingEvent,
+  } = useForm<WeddingEventFormData>({
+    defaultValues: { weddingEventAt: '' },
+    mode: 'onChange',
+    resolver: zodResolver(weddingEventSchema),
+  });
 
   const configQuery = useQuery({
     queryKey: ['admin-raffle-config'],
@@ -56,8 +68,11 @@ export function AdminSettingsPage() {
       resetScheduledDraw({
         scheduledDrawAt: toDateTimeLocalValue(configQuery.data.scheduledDrawAt),
       });
+      resetWeddingEvent({
+        weddingEventAt: toDateTimeLocalValue(configQuery.data.weddingEventAt),
+      });
     }
-  }, [configQuery.data, reset, resetScheduledDraw]);
+  }, [configQuery.data, reset, resetScheduledDraw, resetWeddingEvent]);
 
   const updateUnitPriceMutation = useMutation({
     mutationFn: (data: RaffleConfigFormData) =>
@@ -76,6 +91,17 @@ export function AdminSettingsPage() {
     onSuccess: (data) => {
       queryClient.setQueryData(['admin-raffle-config'], data);
       resetScheduledDraw({ scheduledDrawAt: toDateTimeLocalValue(data.scheduledDrawAt) });
+    },
+  });
+
+  const updateWeddingEventMutation = useMutation({
+    mutationFn: (data: WeddingEventFormData) =>
+      raffleConfigService.updateWeddingEventAt({
+        weddingEventAt: fromDateTimeLocalValue(data.weddingEventAt),
+      }),
+    onSuccess: (data) => {
+      queryClient.setQueryData(['admin-raffle-config'], data);
+      resetWeddingEvent({ weddingEventAt: toDateTimeLocalValue(data.weddingEventAt) });
     },
   });
 
@@ -171,7 +197,7 @@ export function AdminSettingsPage() {
 
               <TextInput
                 id="raffle-scheduled-draw-at"
-                label="Data e horário"
+                label="Data e horário do sorteio"
                 type="datetime-local"
                 error={scheduledDrawErrors.scheduledDrawAt?.message}
                 {...registerScheduledDraw('scheduledDrawAt')}
@@ -202,6 +228,55 @@ export function AdminSettingsPage() {
               >
                 <CalendarClock aria-hidden="true" className="h-5 w-5" />
                 Salvar data
+              </Button>
+            </form>
+          </Card>
+
+          <Card>
+            <form
+              className="space-y-5"
+              onSubmit={handleWeddingEventSubmit((data) => updateWeddingEventMutation.mutate(data))}
+            >
+              <div>
+                <h2 className="font-serif text-2xl font-bold">Início do casamento</h2>
+                <p className="mt-1 text-sm text-warm-gray">
+                  Essa data será enviada ao Mercado Pago como contexto do evento.
+                </p>
+              </div>
+
+              <TextInput
+                id="raffle-wedding-event-at"
+                label="Data e horário de início do casamento"
+                type="datetime-local"
+                error={weddingEventErrors.weddingEventAt?.message}
+                {...registerWeddingEvent('weddingEventAt')}
+              />
+
+              {updateWeddingEventMutation.isSuccess ? (
+                <p
+                  className="rounded-lg border border-olive/20 bg-olive/10 px-4 py-3 text-sm font-semibold text-olive"
+                  role="status"
+                >
+                  Início do casamento atualizado com sucesso.
+                </p>
+              ) : null}
+
+              {updateWeddingEventMutation.isError ? (
+                <p
+                  className="rounded-lg border border-terracotta/30 bg-blush px-4 py-3 text-sm text-terracotta-dark"
+                  role="alert"
+                >
+                  Não foi possível atualizar o início do casamento.
+                </p>
+              ) : null}
+
+              <Button
+                disabled={!isWeddingEventValid || configQuery.isLoading}
+                isLoading={updateWeddingEventMutation.isPending}
+                type="submit"
+              >
+                <CalendarDays aria-hidden="true" className="h-5 w-5" />
+                Salvar início
               </Button>
             </form>
           </Card>
@@ -267,6 +342,17 @@ export function AdminSettingsPage() {
                 <p className="mt-2 text-sm font-semibold text-charcoal">
                   {configQuery.data.scheduledDrawAt
                     ? formatDateTime(configQuery.data.scheduledDrawAt)
+                    : 'Ainda não configurado'}
+                </p>
+              </div>
+
+              <div className="rounded-lg bg-white/70 px-4 py-3">
+                <p className="text-xs font-bold uppercase tracking-wide text-warm-gray">
+                  Início do casamento
+                </p>
+                <p className="mt-2 text-sm font-semibold text-charcoal">
+                  {configQuery.data.weddingEventAt
+                    ? formatDateTime(configQuery.data.weddingEventAt)
                     : 'Ainda não configurado'}
                 </p>
               </div>

@@ -62,12 +62,15 @@ class MercadoPagoClientTests {
 
         CheckoutPreferenceResponse response = client.createPreference(
                 new CheckoutPreferenceRequest(
-                        "Guest User", "11999999999", null, 2, new BigDecimal("10.00"), "external-reference-123"),
+                                "Guest User", "11999999999", null, 2, new BigDecimal("10.00"), "external-reference-123")
+                        .withDeviceId("device-session-123"),
                 "checkout-key-123");
 
         ArgumentCaptor<MPRequestOptions> optionsCaptor = ArgumentCaptor.forClass(MPRequestOptions.class);
         verify(preferenceClient).create(any(), optionsCaptor.capture());
         assertThat(optionsCaptor.getValue().getCustomHeaders()).containsEntry("X-Idempotency-Key", "checkout-key-123");
+        assertThat(optionsCaptor.getValue().getCustomHeaders())
+                .containsEntry("X-meli-session-id", "device-session-123");
         assertThat(optionsCaptor.getValue().getConnectionTimeout()).isEqualTo(2_000);
         assertThat(optionsCaptor.getValue().getConnectionRequestTimeout()).isEqualTo(500);
         assertThat(optionsCaptor.getValue().getSocketTimeout()).isEqualTo(5_000);
@@ -88,22 +91,30 @@ class MercadoPagoClientTests {
 
         client.createPreference(
                 new CheckoutPreferenceRequest(
-                        "Guest User",
-                        "11999999999",
-                        null,
-                        20,
-                        new BigDecimal("50.00"),
-                        new BigDecimal("880.00"),
-                        true,
-                        "external-reference-123"),
+                                "Guest User",
+                                "11999999999",
+                                null,
+                                20,
+                                new BigDecimal("50.00"),
+                                new BigDecimal("880.00"),
+                                true,
+                                "external-reference-123")
+                        .withPaymentContext(null, null, OffsetDateTime.parse("2026-09-05T20:00:00-03:00")),
                 "checkout-key-123");
 
         ArgumentCaptor<PreferenceRequest> requestCaptor = ArgumentCaptor.forClass(PreferenceRequest.class);
         verify(preferenceClient).create(requestCaptor.capture(), any(MPRequestOptions.class));
         var item = requestCaptor.getValue().getItems().getFirst();
         assertThat(item.getTitle()).isEqualTo("Combo 20 números da sorte");
+        assertThat(item.getId()).isEqualTo("wedding-lucky-number");
+        assertThat(item.getDescription()).isEqualTo("20 número(s) da sorte para presente de casamento");
+        assertThat(item.getCategoryId()).isEqualTo("entertainment");
+        assertThat(item.getCategoryDescriptor().getEventDate()).isEqualTo(OffsetDateTime.parse("2026-09-05T23:00:00Z"));
+        assertThat(item.getCurrencyId()).isEqualTo("BRL");
         assertThat(item.getQuantity()).isEqualTo(1);
         assertThat(item.getUnitPrice()).isEqualByComparingTo("880.00");
+        assertThat(requestCaptor.getValue().getAdditionalInfo())
+                .isEqualTo("Compra de 20 número(s) da sorte para presente de casamento.");
     }
 
     @Test
@@ -131,17 +142,25 @@ class MercadoPagoClientTests {
 
         client.createPreference(
                 new CheckoutPreferenceRequest(
-                        "Guest User",
-                        "(11) 99999-9999",
-                        "guest@example.com",
-                        2,
-                        new BigDecimal("10.00"),
-                        "external-reference-123"),
+                                "Ana Maria Silva",
+                                "(11) 99999-9999",
+                                "guest@example.com",
+                                2,
+                                new BigDecimal("10.00"),
+                                "external-reference-123")
+                        .withPaymentContext("52998224725", null),
                 "checkout-key-123");
 
         ArgumentCaptor<PreferenceRequest> requestCaptor = ArgumentCaptor.forClass(PreferenceRequest.class);
         verify(preferenceClient).create(requestCaptor.capture(), any(MPRequestOptions.class));
-        assertThat(requestCaptor.getValue().getPayer().getEmail()).isEqualTo("guest@example.com");
+        var payer = requestCaptor.getValue().getPayer();
+        assertThat(payer.getName()).isEqualTo("Ana");
+        assertThat(payer.getSurname()).isEqualTo("Maria Silva");
+        assertThat(payer.getEmail()).isEqualTo("guest@example.com");
+        assertThat(payer.getPhone().getAreaCode()).isEqualTo("11");
+        assertThat(payer.getPhone().getNumber()).isEqualTo("999999999");
+        assertThat(payer.getIdentification().getType()).isEqualTo("CPF");
+        assertThat(payer.getIdentification().getNumber()).isEqualTo("52998224725");
     }
 
     @Test

@@ -34,6 +34,7 @@ import com.weddingraffle.rifa.service.RaffleConfigService;
 import com.weddingraffle.rifa.service.RafflePricingService;
 import com.weddingraffle.rifa.util.PurchaseRequestHasher;
 import java.math.BigDecimal;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -107,9 +108,13 @@ class TransactionServiceImplTests {
         String requestHash = purchaseRequestHasher.online("Guest User", "11999999999", 2);
         CheckoutPreferenceRequest preferenceRequest = new CheckoutPreferenceRequest(
                 "Guest User", "11999999999", null, 2, new BigDecimal("10.00"), "external-reference-123");
+        OffsetDateTime weddingEventAt = OffsetDateTime.parse("2026-09-05T20:00:00-03:00");
+        CheckoutPreferenceRequest providerPreferenceRequest =
+                preferenceRequest.withPaymentContext("52998224725", "device-session-123", weddingEventAt);
         TransactionCreateResponse expectedResponse = new TransactionCreateResponse(
                 "external-reference-123", "4821", "preference-123", "https://checkout.example.com");
         when(purchaseIntentService.findOnline(idempotencyKey, requestHash)).thenReturn(Optional.empty());
+        when(raffleConfigService.getWeddingEventAt()).thenReturn(weddingEventAt);
         when(rafflePricingService.calculate(2, null)).thenReturn(regularPurchasePrice());
         when(purchaseIntentService.prepareOnline(
                         idempotencyKey,
@@ -121,7 +126,7 @@ class TransactionServiceImplTests {
                         2,
                         regularPurchasePrice()))
                 .thenReturn(new OnlinePurchaseAttempt(preferenceRequest, null));
-        when(paymentProviderClient.createPreference(preferenceRequest, idempotencyKey))
+        when(paymentProviderClient.createPreference(providerPreferenceRequest, idempotencyKey))
                 .thenReturn(new CheckoutPreferenceResponse(
                         "preference-123", "https://checkout.example.com", "collector-123"));
         when(purchaseIntentService.completeOnline(
@@ -132,7 +137,9 @@ class TransactionServiceImplTests {
                 .thenReturn(expectedResponse);
 
         TransactionCreateResponse response = transactionService.create(
-                idempotencyKey, new TransactionCreateRequest("Guest User", "(11) 99999-9999", 2));
+                idempotencyKey,
+                new TransactionCreateRequest(
+                        "Guest User", "(11) 99999-9999", null, null, 2, null, "529.982.247-25", "device-session-123"));
 
         assertThat(response.externalReference()).isNotBlank();
         assertThat(response.recoveryCode()).isEqualTo("4821");
@@ -148,6 +155,9 @@ class TransactionServiceImplTests {
         assertThat(preferenceCaptor.getValue().quantity()).isEqualTo(2);
         assertThat(preferenceCaptor.getValue().unitPrice()).isEqualByComparingTo("10.00");
         assertThat(preferenceCaptor.getValue().externalReference()).isEqualTo(response.externalReference());
+        assertThat(preferenceCaptor.getValue().cpf()).isEqualTo("52998224725");
+        assertThat(preferenceCaptor.getValue().deviceId()).isEqualTo("device-session-123");
+        assertThat(preferenceCaptor.getValue().weddingEventAt()).isEqualTo(weddingEventAt);
 
         verify(purchaseIntentService)
                 .completeOnline(

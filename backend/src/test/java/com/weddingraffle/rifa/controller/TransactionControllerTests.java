@@ -106,15 +106,38 @@ class TransactionControllerTests {
                 .thenReturn(new TransactionCreateResponse(
                         "external-reference-123", "4821", "preference-123", "https://checkout.example.com"));
 
-        mockMvc.perform(post("/transactions")
-                        .header("Idempotency-Key", "checkout-key-123")
-                        .contentType("application/json")
-                        .content("{\"name\":\"Guest User\",\"phone\":\"(11) 99999-9999\",\"quantity\":2}"))
+        mockMvc.perform(
+                        post("/transactions")
+                                .header("Idempotency-Key", "checkout-key-123")
+                                .contentType("application/json")
+                                .content(
+                                        "{\"name\":\"Guest User\",\"phone\":\"(11) 99999-9999\",\"cpf\":\"52998224725\",\"quantity\":2,\"deviceId\":\"device-session-123\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.externalReference").value("external-reference-123"))
                 .andExpect(jsonPath("$.recoveryCode").value("4821"))
                 .andExpect(jsonPath("$.preferenceId").value("preference-123"))
                 .andExpect(jsonPath("$.checkoutUrl").value("https://checkout.example.com"));
+
+        ArgumentCaptor<TransactionCreateRequest> requestCaptor =
+                ArgumentCaptor.forClass(TransactionCreateRequest.class);
+        verify(transactionService).create(eq("checkout-key-123"), requestCaptor.capture());
+        assertThat(requestCaptor.getValue().cpf()).isEqualTo("52998224725");
+        assertThat(requestCaptor.getValue().deviceId()).isEqualTo("device-session-123");
+    }
+
+    @Test
+    void createRejectsInvalidDeviceId() throws Exception {
+        String invalidDeviceId = "x".repeat(257);
+
+        mockMvc.perform(post("/transactions")
+                        .header("Idempotency-Key", "checkout-key-123")
+                        .contentType("application/json")
+                        .content(
+                                "{\"name\":\"Guest User\",\"phone\":\"(11) 99999-9999\",\"cpf\":\"52998224725\",\"quantity\":2,\"deviceId\":\""
+                                        + invalidDeviceId
+                                        + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
     }
 
     @Test
@@ -132,6 +155,7 @@ class TransactionControllerTests {
                                 {
                                   "name": "Guest User",
                                   "phone": "(11) 99999-9999",
+                                  "cpf": "52998224725",
                                   "quantity": 20,
                                   "comboId": 3,
                                   "totalAmount": 10,
@@ -162,9 +186,10 @@ class TransactionControllerTests {
         mockMvc.perform(post("/transactions")
                         .header("Idempotency-Key", "checkout-key-123")
                         .contentType("application/json")
-                        .content("{\"name\":\"Guest User\",\"phone\":\"(11) 99999-9999\",\"giftMessage\":\""
-                                + longMessage
-                                + "\",\"quantity\":2}"))
+                        .content(
+                                "{\"name\":\"Guest User\",\"phone\":\"(11) 99999-9999\",\"cpf\":\"52998224725\",\"giftMessage\":\""
+                                        + longMessage
+                                        + "\",\"quantity\":2}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
     }
@@ -175,12 +200,26 @@ class TransactionControllerTests {
                 .thenThrow(new IdempotencyConflictException(
                         "The idempotency key was already used with a different purchase request."));
 
-        mockMvc.perform(post("/transactions")
-                        .header("Idempotency-Key", "checkout-key-123")
-                        .contentType("application/json")
-                        .content("{\"name\":\"Guest User\",\"phone\":\"(11) 99999-9999\",\"quantity\":3}"))
+        mockMvc.perform(
+                        post("/transactions")
+                                .header("Idempotency-Key", "checkout-key-123")
+                                .contentType("application/json")
+                                .content(
+                                        "{\"name\":\"Guest User\",\"phone\":\"(11) 99999-9999\",\"cpf\":\"52998224725\",\"quantity\":3}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("IDEMPOTENCY_CONFLICT"));
+    }
+
+    @Test
+    void createRejectsInvalidCpf() throws Exception {
+        mockMvc.perform(
+                        post("/transactions")
+                                .header("Idempotency-Key", "checkout-key-123")
+                                .contentType("application/json")
+                                .content(
+                                        "{\"name\":\"Guest User\",\"phone\":\"(11) 99999-9999\",\"cpf\":\"111.111.111-11\",\"quantity\":2}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
     }
 
     @Test

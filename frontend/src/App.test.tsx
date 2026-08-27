@@ -63,6 +63,7 @@ vi.mock('./services/raffleConfigService', () => ({
     updateCombo: vi.fn(),
     updateScheduledDrawAt: vi.fn(),
     updateUnitPrice: vi.fn(),
+    updateWeddingEventAt: vi.fn(),
   },
 }));
 
@@ -199,6 +200,7 @@ describe('App', () => {
       scheduledDrawAt: null,
       unitPrice: '10.00',
       updatedAt: '2026-08-14T18:00:00-03:00',
+      weddingEventAt: null,
       combos: [],
     });
     mockedRaffleService.getEligibleNumbers.mockResolvedValue([
@@ -376,7 +378,7 @@ describe('App', () => {
     expect(screen.queryByRole('button', { name: 'Continuar' })).not.toBeInTheDocument();
   });
 
-  it('requires name and phone before the quantity step', async () => {
+  it('requires name, phone and CPF before the quantity step', async () => {
     const user = userEvent.setup();
     renderApp('/buy');
 
@@ -388,7 +390,7 @@ describe('App', () => {
       ),
     ).toBeInTheDocument();
 
-    await user.type(screen.getByLabelText('Nome'), 'Guest User');
+    await user.type(screen.getByLabelText('Nome e sobrenome'), 'Guest User');
 
     expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled();
     expect(screen.queryByText('Quantos números você quer?')).not.toBeInTheDocument();
@@ -396,6 +398,11 @@ describe('App', () => {
     await user.type(screen.getByLabelText('Telefone'), '44988549696');
 
     expect(screen.getByLabelText('Telefone')).toHaveValue('(44) 98854-9696');
+    expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled();
+
+    await user.type(screen.getByLabelText('CPF'), '52998224725');
+
+    expect(screen.getByLabelText('CPF')).toHaveValue('529.982.247-25');
     expect(screen.getByRole('button', { name: 'Continuar' })).toBeEnabled();
   });
 
@@ -403,11 +410,24 @@ describe('App', () => {
     const user = userEvent.setup();
     renderApp('/buy');
 
-    await user.type(screen.getByLabelText('Nome'), 'Guest User');
+    await user.type(screen.getByLabelText('Nome e sobrenome'), 'Guest User');
     await user.type(screen.getByLabelText('Telefone'), '44988549696');
+    await user.type(screen.getByLabelText('CPF'), '52998224725');
     await user.type(screen.getByLabelText(/E-mail/), 'carlos@');
 
     expect(await screen.findByText('Informe um e-mail válido.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled();
+  });
+
+  it('blocks CPF with invalid check digits before the quantity step', async () => {
+    const user = userEvent.setup();
+    renderApp('/buy');
+
+    await user.type(screen.getByLabelText('Nome e sobrenome'), 'Guest User');
+    await user.type(screen.getByLabelText('Telefone'), '44988549696');
+    await user.type(screen.getByLabelText('CPF'), '11111111111');
+
+    expect(await screen.findByText('Informe um CPF válido.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled();
   });
 
@@ -427,20 +447,23 @@ describe('App', () => {
 
     renderApp('/buy');
 
-    await user.type(screen.getByLabelText('Nome'), 'Guest User');
+    await user.type(screen.getByLabelText('Nome e sobrenome'), 'Guest User');
     await user.type(screen.getByLabelText('Telefone'), '(11) 99999-9999');
+    await user.type(screen.getByLabelText('CPF'), '52998224725');
     await user.type(screen.getByLabelText(/E-mail/), 'guest@example.com');
     await user.click(screen.getByRole('button', { name: 'Continuar' }));
     await screen.findAllByText('R$ 10,00');
     await advancePurchaseFlowToReview(user);
 
     expect(screen.getByText('guest@example.com')).toBeInTheDocument();
+    expect(screen.getByText('529.982.247-25')).toBeInTheDocument();
 
     await confirmMercadoPagoRedirect(user);
 
     await waitFor(() => expect(mockedTransactionService.create).toHaveBeenCalledTimes(1));
     expect(mockedTransactionService.create).toHaveBeenCalledWith(
       {
+        cpf: '52998224725',
         email: 'guest@example.com',
         name: 'Guest User',
         phone: '11999999999',
@@ -464,8 +487,9 @@ describe('App', () => {
 
     renderApp('/buy');
 
-    await user.type(screen.getByLabelText('Nome'), 'Guest User');
+    await user.type(screen.getByLabelText('Nome e sobrenome'), 'Guest User');
     await user.type(screen.getByLabelText('Telefone'), '11999999999');
+    await user.type(screen.getByLabelText('CPF'), '52998224725');
     await user.click(screen.getByRole('button', { name: 'Continuar' }));
     await screen.findAllByText('R$ 10,00');
 
@@ -493,8 +517,9 @@ describe('App', () => {
     }));
 
     renderApp('/buy');
-    await user.type(screen.getByLabelText('Nome'), 'Guest User');
+    await user.type(screen.getByLabelText('Nome e sobrenome'), 'Guest User');
     await user.type(screen.getByLabelText('Telefone'), '11999999999');
+    await user.type(screen.getByLabelText('CPF'), '52998224725');
     await user.click(screen.getByRole('button', { name: 'Continuar' }));
     const quantityInput = await screen.findByLabelText('Quantidade de números');
     await user.click(quantityInput);
@@ -539,8 +564,9 @@ describe('App', () => {
     mockedTransactionService.create.mockReturnValue(new Promise(() => undefined));
 
     renderApp('/buy');
-    await user.type(screen.getByLabelText('Nome'), 'Guest User');
+    await user.type(screen.getByLabelText('Nome e sobrenome'), 'Guest User');
     await user.type(screen.getByLabelText('Telefone'), '11999999999');
+    await user.type(screen.getByLabelText('CPF'), '52998224725');
     await user.click(screen.getByRole('button', { name: 'Continuar' }));
 
     const comboButton = await screen.findByRole('button', { name: /2 números/i });
@@ -564,6 +590,7 @@ describe('App', () => {
     expect(mockedTransactionService.create).toHaveBeenCalledWith(
       {
         comboId: 4,
+        cpf: '52998224725',
         name: 'Guest User',
         phone: '11999999999',
         quantity: 2,
@@ -588,8 +615,9 @@ describe('App', () => {
 
     renderApp('/buy');
 
-    await user.type(screen.getByLabelText('Nome'), 'Guest User');
+    await user.type(screen.getByLabelText('Nome e sobrenome'), 'Guest User');
     await user.type(screen.getByLabelText('Telefone'), '(11) 99999-9999');
+    await user.type(screen.getByLabelText('CPF'), '52998224725');
     await user.click(screen.getByRole('button', { name: 'Continuar' }));
     await screen.findAllByText('R$ 10,00');
 
@@ -604,6 +632,7 @@ describe('App', () => {
     expect(screen.queryByText('Pagamento em andamento')).not.toBeInTheDocument();
     expect(mockedTransactionService.create).toHaveBeenCalledWith(
       {
+        cpf: '52998224725',
         name: 'Guest User',
         phone: '11999999999',
         quantity: 1,
@@ -629,8 +658,9 @@ describe('App', () => {
 
     renderApp('/buy');
 
-    await user.type(screen.getByLabelText('Nome'), 'Guest User');
+    await user.type(screen.getByLabelText('Nome e sobrenome'), 'Guest User');
     await user.type(screen.getByLabelText('Telefone'), '(11) 99999-9999');
+    await user.type(screen.getByLabelText('CPF'), '52998224725');
     await user.click(screen.getByRole('button', { name: 'Continuar' }));
     await screen.findAllByText('R$ 10,00');
     await user.click(screen.getByRole('button', { name: 'Continuar' }));
@@ -644,6 +674,7 @@ describe('App', () => {
     await waitFor(() => expect(mockedTransactionService.create).toHaveBeenCalledTimes(1));
     expect(mockedTransactionService.create).toHaveBeenCalledWith(
       {
+        cpf: '52998224725',
         giftMessage: 'Felicidades!',
         name: 'Guest User',
         phone: '11999999999',
@@ -670,8 +701,9 @@ describe('App', () => {
       });
 
     renderApp('/buy');
-    await user.type(screen.getByLabelText('Nome'), 'Guest User');
+    await user.type(screen.getByLabelText('Nome e sobrenome'), 'Guest User');
     await user.type(screen.getByLabelText('Telefone'), '(11) 99999-9999');
+    await user.type(screen.getByLabelText('CPF'), '52998224725');
     await user.click(screen.getByRole('button', { name: 'Continuar' }));
     await screen.findAllByText('R$ 10,00');
 
@@ -679,6 +711,12 @@ describe('App', () => {
     await confirmMercadoPagoRedirect(user);
     await screen.findByRole('alert');
     const firstKey = mockedTransactionService.create.mock.calls[0][1];
+    const storedIdempotency = window.sessionStorage.getItem(
+      'purchase-idempotency:mercado-pago-checkout',
+    );
+    expect(storedIdempotency).not.toBeNull();
+    expect(storedIdempotency ?? '').not.toContain('52998224725');
+    expect(storedIdempotency ?? '').not.toContain('cpf');
     await user.click(screen.getByRole('button', { name: 'Ir para o Mercado Pago' }));
 
     await waitFor(() => expect(mockedTransactionService.create).toHaveBeenCalledTimes(2));
@@ -691,8 +729,9 @@ describe('App', () => {
     mockedTransactionService.create.mockReturnValue(new Promise(() => undefined));
 
     renderApp('/buy');
-    await user.type(screen.getByLabelText('Nome'), 'Guest User');
+    await user.type(screen.getByLabelText('Nome e sobrenome'), 'Guest User');
     await user.type(screen.getByLabelText('Telefone'), '(11) 99999-9999');
+    await user.type(screen.getByLabelText('CPF'), '52998224725');
     await user.click(screen.getByRole('button', { name: 'Continuar' }));
     await screen.findAllByText('R$ 10,00');
 
@@ -1068,7 +1107,9 @@ describe('App', () => {
       'href',
       '/admin/cash-payment',
     );
-    expect(screen.getByRole('button', { name: /Baixar PDF dos n.meros de Guest User/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /Baixar PDF dos n.meros de Guest User/ }),
+    ).toBeInTheDocument();
     expect(screen.queryByText('Receita aprovada')).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'ConfiguraÃ§Ãµes' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Sorteio' })).not.toBeInTheDocument();
@@ -1363,6 +1404,7 @@ describe('App', () => {
       scheduledDrawAt: null,
       unitPrice: '15.00',
       updatedAt: '2026-08-14T18:05:00-03:00',
+      weddingEventAt: null,
       combos: [],
     });
 
@@ -1433,12 +1475,14 @@ describe('App', () => {
       scheduledDrawAt: null,
       unitPrice: '50.00',
       updatedAt: '2026-08-14T18:00:00-03:00',
+      weddingEventAt: null,
     });
     mockedRaffleConfigService.updateCombo.mockResolvedValue({
       combos: [{ ...combo, displayOrder: 7, highlightMostChosen: true, price: '870.00' }],
       scheduledDrawAt: null,
       unitPrice: '50.00',
       updatedAt: '2026-08-14T18:05:00-03:00',
+      weddingEventAt: null,
     });
 
     renderApp('/admin/settings');
@@ -1471,6 +1515,7 @@ describe('App', () => {
       scheduledDrawAt: '2026-09-05T23:00:00.000Z',
       unitPrice: '10.00',
       updatedAt: '2026-08-14T18:05:00-03:00',
+      weddingEventAt: null,
       combos: [],
     });
 
@@ -1478,7 +1523,7 @@ describe('App', () => {
 
     expect(await screen.findByText('Data do sorteio')).toBeInTheDocument();
 
-    await user.type(screen.getByLabelText('Data e horário'), '2026-09-05T20:00');
+    await user.type(screen.getByLabelText('Data e horário do sorteio'), '2026-09-05T20:00');
     await user.click(screen.getByRole('button', { name: /Salvar data/i }));
 
     await waitFor(() =>
@@ -1487,6 +1532,38 @@ describe('App', () => {
       }),
     );
     expect(await screen.findByText('Data do sorteio atualizada com sucesso.')).toBeInTheDocument();
+  });
+
+  it('updates wedding event date from admin settings', async () => {
+    const user = userEvent.setup();
+    storeAdminSession(
+      createAdminSession({ accessToken: 'jwt-token', expiresIn: 3600, tokenType: 'Bearer' }),
+    );
+    mockedRaffleConfigService.updateWeddingEventAt.mockResolvedValue({
+      combos: [],
+      scheduledDrawAt: null,
+      unitPrice: '10.00',
+      updatedAt: '2026-08-14T18:05:00-03:00',
+      weddingEventAt: '2026-09-05T21:00:00.000Z',
+    });
+
+    renderApp('/admin/settings');
+
+    expect(await screen.findByText('Início do casamento')).toBeInTheDocument();
+    await user.type(
+      screen.getByLabelText('Data e horário de início do casamento'),
+      '2026-09-05T18:00',
+    );
+    await user.click(screen.getByRole('button', { name: 'Salvar início' }));
+
+    await waitFor(() =>
+      expect(mockedRaffleConfigService.updateWeddingEventAt).toHaveBeenCalledWith({
+        weddingEventAt: '2026-09-05T21:00:00.000Z',
+      }),
+    );
+    expect(
+      await screen.findByText('Início do casamento atualizado com sucesso.'),
+    ).toBeInTheDocument();
   });
 
   it('renders existing raffle result and keeps draw action available', async () => {

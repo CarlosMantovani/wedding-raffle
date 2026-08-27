@@ -4,6 +4,7 @@ import com.weddingraffle.rifa.dto.RaffleComboUpdateRequest;
 import com.weddingraffle.rifa.dto.RaffleConfigResponse;
 import com.weddingraffle.rifa.dto.ScheduledDrawAtUpdateRequest;
 import com.weddingraffle.rifa.dto.UnitPriceUpdateRequest;
+import com.weddingraffle.rifa.dto.WeddingEventAtUpdateRequest;
 import com.weddingraffle.rifa.service.RaffleConfigService;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
@@ -42,6 +43,13 @@ public class RaffleConfigController {
     public ResponseEntity<RaffleConfigResponse> updateScheduledDrawAt(
             @Valid @RequestBody ScheduledDrawAtUpdateRequest request) {
         return ResponseEntity.ok(raffleConfigService.updateScheduledDrawAt(request.scheduledDrawAt()));
+    }
+
+    @Operation(summary = "Update wedding event date and time")
+    @PutMapping("/wedding-event-at")
+    public ResponseEntity<RaffleConfigResponse> updateWeddingEventAt(
+            @Valid @RequestBody WeddingEventAtUpdateRequest request) {
+        return ResponseEntity.ok(raffleConfigService.updateWeddingEventAt(request.weddingEventAt()));
     }
 
     @Operation(summary = "Update raffle combo price, status and display order")

@@ -9,6 +9,8 @@ public interface RaffleConfigService {
 
     BigDecimal getCurrentUnitPrice();
 
+    OffsetDateTime getWeddingEventAt();
+
     boolean isDrawClosed();
 
     RaffleConfigResponse getConfig();
@@ -16,6 +18,8 @@ public interface RaffleConfigService {
     RaffleConfigResponse updateUnitPrice(BigDecimal unitPrice);
 
     RaffleConfigResponse updateScheduledDrawAt(OffsetDateTime scheduledDrawAt);
+
+    RaffleConfigResponse updateWeddingEventAt(OffsetDateTime weddingEventAt);
 
     RaffleConfigResponse updateCombo(Long comboId, RaffleComboUpdateRequest request);
 }

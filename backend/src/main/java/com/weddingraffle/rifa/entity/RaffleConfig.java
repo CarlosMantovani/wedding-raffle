@@ -21,6 +21,8 @@ public class RaffleConfig {
 
     private OffsetDateTime scheduledDrawAt;
 
+    private OffsetDateTime weddingEventAt;
+
     @Column(insertable = false, updatable = false)
     private OffsetDateTime updatedAt;
 
@@ -47,11 +49,19 @@ public class RaffleConfig {
         return updatedAt;
     }
 
+    public OffsetDateTime getWeddingEventAt() {
+        return weddingEventAt;
+    }
+
     public void updateUnitPrice(BigDecimal unitPrice) {
         this.unitPrice = unitPrice;
     }
 
     public void updateScheduledDrawAt(OffsetDateTime scheduledDrawAt) {
         this.scheduledDrawAt = scheduledDrawAt;
+    }
+
+    public void updateWeddingEventAt(OffsetDateTime weddingEventAt) {
+        this.weddingEventAt = weddingEventAt;
     }
 }
