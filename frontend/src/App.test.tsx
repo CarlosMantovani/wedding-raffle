@@ -390,7 +390,7 @@ describe('App', () => {
       ),
     ).toBeInTheDocument();
 
-    await user.type(screen.getByLabelText('Nome'), 'Guest User');
+    await user.type(screen.getByLabelText('Nome e sobrenome'), 'Guest User');
 
     expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled();
     expect(screen.queryByText('Quantos números você quer?')).not.toBeInTheDocument();
@@ -410,7 +410,7 @@ describe('App', () => {
     const user = userEvent.setup();
     renderApp('/buy');
 
-    await user.type(screen.getByLabelText('Nome'), 'Guest User');
+    await user.type(screen.getByLabelText('Nome e sobrenome'), 'Guest User');
     await user.type(screen.getByLabelText('Telefone'), '44988549696');
     await user.type(screen.getByLabelText('CPF'), '52998224725');
     await user.type(screen.getByLabelText(/E-mail/), 'carlos@');
@@ -423,7 +423,7 @@ describe('App', () => {
     const user = userEvent.setup();
     renderApp('/buy');
 
-    await user.type(screen.getByLabelText('Nome'), 'Guest User');
+    await user.type(screen.getByLabelText('Nome e sobrenome'), 'Guest User');
     await user.type(screen.getByLabelText('Telefone'), '44988549696');
     await user.type(screen.getByLabelText('CPF'), '11111111111');
 
@@ -447,7 +447,7 @@ describe('App', () => {
 
     renderApp('/buy');
 
-    await user.type(screen.getByLabelText('Nome'), 'Guest User');
+    await user.type(screen.getByLabelText('Nome e sobrenome'), 'Guest User');
     await user.type(screen.getByLabelText('Telefone'), '(11) 99999-9999');
     await user.type(screen.getByLabelText('CPF'), '52998224725');
     await user.type(screen.getByLabelText(/E-mail/), 'guest@example.com');
@@ -487,7 +487,7 @@ describe('App', () => {
 
     renderApp('/buy');
 
-    await user.type(screen.getByLabelText('Nome'), 'Guest User');
+    await user.type(screen.getByLabelText('Nome e sobrenome'), 'Guest User');
     await user.type(screen.getByLabelText('Telefone'), '11999999999');
     await user.type(screen.getByLabelText('CPF'), '52998224725');
     await user.click(screen.getByRole('button', { name: 'Continuar' }));
@@ -517,7 +517,7 @@ describe('App', () => {
     }));
 
     renderApp('/buy');
-    await user.type(screen.getByLabelText('Nome'), 'Guest User');
+    await user.type(screen.getByLabelText('Nome e sobrenome'), 'Guest User');
     await user.type(screen.getByLabelText('Telefone'), '11999999999');
     await user.type(screen.getByLabelText('CPF'), '52998224725');
     await user.click(screen.getByRole('button', { name: 'Continuar' }));
@@ -564,7 +564,7 @@ describe('App', () => {
     mockedTransactionService.create.mockReturnValue(new Promise(() => undefined));
 
     renderApp('/buy');
-    await user.type(screen.getByLabelText('Nome'), 'Guest User');
+    await user.type(screen.getByLabelText('Nome e sobrenome'), 'Guest User');
     await user.type(screen.getByLabelText('Telefone'), '11999999999');
     await user.type(screen.getByLabelText('CPF'), '52998224725');
     await user.click(screen.getByRole('button', { name: 'Continuar' }));
@@ -615,7 +615,7 @@ describe('App', () => {
 
     renderApp('/buy');
 
-    await user.type(screen.getByLabelText('Nome'), 'Guest User');
+    await user.type(screen.getByLabelText('Nome e sobrenome'), 'Guest User');
     await user.type(screen.getByLabelText('Telefone'), '(11) 99999-9999');
     await user.type(screen.getByLabelText('CPF'), '52998224725');
     await user.click(screen.getByRole('button', { name: 'Continuar' }));
@@ -658,7 +658,7 @@ describe('App', () => {
 
     renderApp('/buy');
 
-    await user.type(screen.getByLabelText('Nome'), 'Guest User');
+    await user.type(screen.getByLabelText('Nome e sobrenome'), 'Guest User');
     await user.type(screen.getByLabelText('Telefone'), '(11) 99999-9999');
     await user.type(screen.getByLabelText('CPF'), '52998224725');
     await user.click(screen.getByRole('button', { name: 'Continuar' }));
@@ -701,7 +701,7 @@ describe('App', () => {
       });
 
     renderApp('/buy');
-    await user.type(screen.getByLabelText('Nome'), 'Guest User');
+    await user.type(screen.getByLabelText('Nome e sobrenome'), 'Guest User');
     await user.type(screen.getByLabelText('Telefone'), '(11) 99999-9999');
     await user.type(screen.getByLabelText('CPF'), '52998224725');
     await user.click(screen.getByRole('button', { name: 'Continuar' }));
@@ -729,7 +729,7 @@ describe('App', () => {
     mockedTransactionService.create.mockReturnValue(new Promise(() => undefined));
 
     renderApp('/buy');
-    await user.type(screen.getByLabelText('Nome'), 'Guest User');
+    await user.type(screen.getByLabelText('Nome e sobrenome'), 'Guest User');
     await user.type(screen.getByLabelText('Telefone'), '(11) 99999-9999');
     await user.type(screen.getByLabelText('CPF'), '52998224725');
     await user.click(screen.getByRole('button', { name: 'Continuar' }));

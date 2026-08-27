@@ -285,8 +285,8 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
                 autoComplete="name"
                 error={errors.name?.message}
                 id="buyer-name"
-                label="Nome"
-                placeholder="Seu nome"
+                label="Nome e sobrenome"
+                placeholder="Seu nome e sobrenome"
                 {...register('name')}
               />
 
