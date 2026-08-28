@@ -84,6 +84,23 @@ class CapacityReservationServiceImplTests {
     }
 
     @Test
+    void expiresActiveReservationsOnDemand() {
+        OffsetDateTime now = OffsetDateTime.ofInstant(NOW, ZoneOffset.UTC);
+        RaffleCapacity capacity = new RaffleCapacity(10, 5, 0);
+        CapacityReservation expired = new CapacityReservation("expired", 5, now.minusSeconds(1));
+        when(raffleCapacityRepository.findLockedById(RaffleCapacity.SINGLETON_ID))
+                .thenReturn(Optional.of(capacity));
+        when(capacityReservationRepository.findByStatusAndExpiresAtLessThanEqual(CapacityReservationStatus.ACTIVE, now))
+                .thenReturn(List.of(expired));
+
+        int expiredCount = service.expireActiveReservations();
+
+        assertThat(expiredCount).isEqualTo(1);
+        assertThat(expired.getStatus()).isEqualTo(CapacityReservationStatus.EXPIRED);
+        assertThat(capacity.getReservedQuantity()).isZero();
+    }
+
+    @Test
     void rejectsCheckoutBeforeProviderCallWhenCapacityIsInsufficient() {
         OffsetDateTime now = OffsetDateTime.ofInstant(NOW, ZoneOffset.UTC);
         RaffleCapacity capacity = new RaffleCapacity(10, 0, 10);

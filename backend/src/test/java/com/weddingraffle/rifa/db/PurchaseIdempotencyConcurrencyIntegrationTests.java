@@ -12,6 +12,7 @@ import com.weddingraffle.rifa.dto.CashTransactionCreateResponse;
 import com.weddingraffle.rifa.dto.TransactionCreateRequest;
 import com.weddingraffle.rifa.dto.TransactionCreateResponse;
 import com.weddingraffle.rifa.entity.CapacityReservationStatus;
+import com.weddingraffle.rifa.entity.PurchaseIntentAction;
 import com.weddingraffle.rifa.entity.PurchaseIntentStatus;
 import com.weddingraffle.rifa.entity.RaffleCapacity;
 import com.weddingraffle.rifa.exception.IdempotencyConflictException;
@@ -25,6 +26,7 @@ import com.weddingraffle.rifa.repository.TransactionRepository;
 import com.weddingraffle.rifa.service.AdminTransactionService;
 import com.weddingraffle.rifa.service.TransactionService;
 import com.zaxxer.hikari.HikariDataSource;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
@@ -41,6 +43,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -212,6 +215,78 @@ class PurchaseIdempotencyConcurrencyIntegrationTests {
         RaffleCapacity capacity =
                 raffleCapacityRepository.findById(RaffleCapacity.SINGLETON_ID).orElseThrow();
         assertThat(capacity.getReservedQuantity()).isZero();
+    }
+
+    @Test
+    @Transactional
+    void cleanupDeletesOnlyAbandonedPendingOnlineIntentsWithoutTransaction() {
+        OffsetDateTime now = OffsetDateTime.parse("2026-08-28T13:00:00Z");
+        insertPurchaseIntent(
+                "old-online-pending", "old-online-pending", "MERCADO_PAGO_CHECKOUT", "PENDING", now.minusHours(2));
+        insertPurchaseIntent(
+                "fresh-online-pending",
+                "fresh-online-pending",
+                "MERCADO_PAGO_CHECKOUT",
+                "PENDING",
+                now.minusMinutes(30));
+        insertPurchaseIntent(
+                "old-online-completed",
+                "old-online-completed",
+                "MERCADO_PAGO_CHECKOUT",
+                "COMPLETED",
+                now.minusHours(2));
+        insertPurchaseIntent("old-cash-pending", "old-cash-pending", "CASH_REGISTRATION", "PENDING", now.minusHours(2));
+        insertPurchaseIntent(
+                "linked-online-pending",
+                "linked-online-pending",
+                "MERCADO_PAGO_CHECKOUT",
+                "PENDING",
+                now.minusHours(2));
+        jdbcTemplate.update(
+                """
+                INSERT INTO transaction (
+                    name, phone, email, quantity, total_amount, status, external_reference,
+                    payment_method, unit_price, recovery_code
+                )
+                VALUES ('Linked Guest', '11999999999', null, 1, 10.00, 'PENDING', 'linked-online-pending',
+                    'MERCADO_PAGO', 10.00, '4821')
+                """);
+
+        int deleted = purchaseIntentRepository.deleteAbandonedPendingIntents(
+                PurchaseIntentAction.MERCADO_PAGO_CHECKOUT, PurchaseIntentStatus.PENDING, now.minusHours(1));
+
+        assertThat(deleted).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM purchase_intent", Long.class))
+                .isEqualTo(4);
+        assertThat(purchaseIntentRepository.findByExternalReference("old-online-pending"))
+                .isEmpty();
+        assertThat(purchaseIntentRepository.findByExternalReference("fresh-online-pending"))
+                .isPresent();
+        assertThat(purchaseIntentRepository.findByExternalReference("old-online-completed"))
+                .isPresent();
+        assertThat(purchaseIntentRepository.findByExternalReference("old-cash-pending"))
+                .isPresent();
+        assertThat(purchaseIntentRepository.findByExternalReference("linked-online-pending"))
+                .isPresent();
+    }
+
+    private void insertPurchaseIntent(
+            String idempotencyKey, String externalReference, String action, String status, OffsetDateTime updatedAt) {
+        jdbcTemplate.update(
+                """
+                INSERT INTO purchase_intent (
+                    idempotency_key, action, request_hash, external_reference, status,
+                    response_payload, created_at, updated_at
+                )
+                VALUES (?, ?, repeat('a', 64), ?, ?, ?, ?, ?)
+                """,
+                idempotencyKey,
+                action,
+                externalReference,
+                status,
+                "COMPLETED".equals(status) ? "{}" : null,
+                updatedAt.minusMinutes(1),
+                updatedAt);
     }
 
     private static <T> List<T> runConcurrently(int count, ThrowingSupplier<T> supplier) throws Exception {

@@ -29,6 +29,11 @@ app:
   payment-status-reconciliation:
     minimum-interval-millis: ${PAYMENT_STATUS_RECONCILIATION_MINIMUM_INTERVAL_MILLIS:5000}
     lease-duration-millis: ${PAYMENT_STATUS_RECONCILIATION_LEASE_DURATION_MILLIS:30000}
+  purchase-state-cleanup:
+    enabled: ${PURCHASE_STATE_CLEANUP_ENABLED:true}
+    initial-delay-millis: ${PURCHASE_STATE_CLEANUP_INITIAL_DELAY_MILLIS:300000}
+    fixed-delay-millis: ${PURCHASE_STATE_CLEANUP_FIXED_DELAY_MILLIS:300000}
+    abandoned-intent-age-millis: ${PURCHASE_STATE_CLEANUP_ABANDONED_INTENT_AGE_MILLIS:3600000}
   lucky-number-allocation:
     chunk-size: ${LUCKY_NUMBER_ALLOCATION_CHUNK_SIZE:1000}
     max-conflict-retries: ${LUCKY_NUMBER_ALLOCATION_MAX_CONFLICT_RETRIES:8}

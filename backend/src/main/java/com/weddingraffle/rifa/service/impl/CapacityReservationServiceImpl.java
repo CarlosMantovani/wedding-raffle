@@ -112,6 +112,13 @@ public class CapacityReservationServiceImpl implements CapacityReservationServic
         reservation.markReleased();
     }
 
+    @Override
+    @Transactional
+    public int expireActiveReservations() {
+        RaffleCapacity capacity = lockCapacity();
+        return expireReservations(capacity, now());
+    }
+
     private void reserveExisting(
             RaffleCapacity capacity, CapacityReservation reservation, int quantity, OffsetDateTime now) {
         ensureQuantityMatches(reservation, quantity);
@@ -143,13 +150,14 @@ public class CapacityReservationServiceImpl implements CapacityReservationServic
         return CapacityAllocationResult.ALLOCATED;
     }
 
-    private void expireReservations(RaffleCapacity capacity, OffsetDateTime now) {
+    private int expireReservations(RaffleCapacity capacity, OffsetDateTime now) {
         var expiredReservations = capacityReservationRepository.findByStatusAndExpiresAtLessThanEqual(
                 CapacityReservationStatus.ACTIVE, now);
         for (CapacityReservation reservation : expiredReservations) {
             capacity.expire(reservation.getQuantity());
             reservation.markExpired();
         }
+        return expiredReservations.size();
     }
 
     private RaffleCapacity lockCapacity() {

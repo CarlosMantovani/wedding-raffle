@@ -7,4 +7,6 @@ public interface CapacityReservationService {
     CapacityAllocationResult allocate(String externalReference, int quantity);
 
     void releaseAllocation(String externalReference);
+
+    int expireActiveReservations();
 }
