@@ -504,6 +504,37 @@ describe('App', () => {
     });
   });
 
+  it('adds and removes five numbers from the quantity selector', async () => {
+    const user = userEvent.setup();
+    mockedTransactionService.quote.mockResolvedValue({
+      name: 'Guest User',
+      phone: '11999999999',
+      quantity: 1,
+      unitPrice: 10 as unknown as string,
+      totalAmount: 10 as unknown as string,
+      comboId: null,
+      availableCombos: [],
+    });
+
+    renderApp('/buy');
+
+    await user.type(screen.getByLabelText('Nome e sobrenome'), 'Guest User');
+    await user.type(screen.getByLabelText('Telefone'), '11999999999');
+    await user.type(screen.getByLabelText('CPF'), '52998224725');
+    await user.click(screen.getByRole('button', { name: 'Continuar' }));
+
+    await user.click(await screen.findByRole('button', { name: 'Adicionar 5 números' }));
+
+    expect(screen.getByLabelText('Quantidade de números')).toHaveValue(6);
+    expect(await screen.findByText('R$ 60,00')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Remover 5 números' }));
+
+    expect(screen.getByLabelText('Quantidade de números')).toHaveValue(1);
+    expect(await screen.findAllByText('R$ 10,00')).not.toHaveLength(0);
+    expect(mockedTransactionService.quote).toHaveBeenCalledTimes(1);
+  });
+
   it('accepts a manually typed quantity and keeps the initial backend quote', async () => {
     const user = userEvent.setup();
     mockedTransactionService.quote.mockImplementation(async (request) => ({
@@ -533,6 +564,36 @@ describe('App', () => {
       quantity: 1,
     });
     expect(quantityInput).toHaveValue(17);
+  });
+
+  it('allows clearing typed quantity and restores one on blur', async () => {
+    const user = userEvent.setup();
+    mockedTransactionService.quote.mockResolvedValue({
+      availableCombos: [],
+      comboId: null,
+      name: 'Guest User',
+      phone: '11999999999',
+      quantity: 1,
+      totalAmount: '10.00',
+      unitPrice: '10.00',
+    });
+
+    renderApp('/buy');
+    await user.type(screen.getByLabelText('Nome e sobrenome'), 'Guest User');
+    await user.type(screen.getByLabelText('Telefone'), '11999999999');
+    await user.type(screen.getByLabelText('CPF'), '52998224725');
+    await user.click(screen.getByRole('button', { name: 'Continuar' }));
+
+    const quantityInput = await screen.findByLabelText('Quantidade de números');
+    await user.click(quantityInput);
+    await user.keyboard('12');
+    expect(quantityInput).toHaveValue(12);
+
+    await user.clear(quantityInput);
+    expect(quantityInput).toHaveValue(null);
+
+    await user.tab();
+    expect(quantityInput).toHaveValue(1);
   });
 
   it('applies backend-priced combo when selector reaches combo quantity', async () => {
