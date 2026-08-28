@@ -43,6 +43,7 @@ type BuyerData = { cpf: string; email?: string; name: string; phone: string };
 export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolean }) {
   const [buyer, setBuyer] = useState<BuyerData | null>(null);
   const [quantity, setQuantity] = useState(1);
+  const [quantityInputValue, setQuantityInputValue] = useState('1');
   const [giftMessage, setGiftMessage] = useState('');
   const [selectedComboId, setSelectedComboId] = useState<number | null>(null);
   const [purchaseStep, setPurchaseStep] = useState<PurchaseStep>('quantity');
@@ -152,22 +153,61 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
 
   const decreaseQuantity = () => {
     setSelectedComboId(null);
-    setQuantity((current) => Math.max(1, current - 1));
+    setQuantity((current) => {
+      const nextQuantity = Math.max(1, current - 1);
+      setQuantityInputValue(String(nextQuantity));
+      return nextQuantity;
+    });
+  };
+  const decreaseQuantityByFive = () => {
+    setSelectedComboId(null);
+    setQuantity((current) => {
+      const nextQuantity = Math.max(1, current - 5);
+      setQuantityInputValue(String(nextQuantity));
+      return nextQuantity;
+    });
   };
   const increaseQuantity = () => {
     setSelectedComboId(null);
-    setQuantity((current) => current + 1);
+    setQuantity((current) => {
+      const nextQuantity = current + 1;
+      setQuantityInputValue(String(nextQuantity));
+      return nextQuantity;
+    });
+  };
+  const increaseQuantityByFive = () => {
+    setSelectedComboId(null);
+    setQuantity((current) => {
+      const nextQuantity = current + 5;
+      setQuantityInputValue(String(nextQuantity));
+      return nextQuantity;
+    });
   };
 
   const changeQuantity = (value: string) => {
+    if (value === '') {
+      setSelectedComboId(null);
+      setQuantityInputValue('');
+      return;
+    }
+
     const nextQuantity = Number(value);
     if (!Number.isInteger(nextQuantity) || nextQuantity < 1) return;
     setSelectedComboId(null);
     setQuantity(nextQuantity);
+    setQuantityInputValue(String(nextQuantity));
+  };
+
+  const restoreDefaultQuantity = () => {
+    if (quantityInputValue) return;
+    setSelectedComboId(null);
+    setQuantity(1);
+    setQuantityInputValue('1');
   };
 
   const selectCombo = (combo: RaffleComboResponse) => {
     setQuantity(combo.quantity);
+    setQuantityInputValue(String(combo.quantity));
     setSelectedComboId(combo.id);
   };
 
@@ -365,43 +405,69 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
             </div>
 
             <Card>
-              <div className="flex items-center justify-center gap-8">
-                <button
-                  aria-label="Diminuir quantidade"
-                  className="grid h-14 w-14 place-items-center rounded-full border-2 border-green text-green transition disabled:cursor-not-allowed disabled:opacity-30"
-                  disabled={quantity === 1}
-                  onClick={decreaseQuantity}
-                  type="button"
-                >
-                  <Minus className="h-5 w-5" />
-                </button>
+              <div className="space-y-4">
+                <div className="flex items-center justify-center gap-6">
+                  <div className="flex items-center gap-2">
+                    <button
+                      aria-label="Remover 5 números"
+                      className="grid h-11 w-11 place-items-center rounded-full border-2 border-green text-sm font-bold text-green transition disabled:cursor-not-allowed disabled:opacity-30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green"
+                      disabled={quantity === 1}
+                      onClick={decreaseQuantityByFive}
+                      type="button"
+                    >
+                      -5
+                    </button>
 
-                <div className="min-w-24 text-center">
-                  <input
-                    aria-label="Quantidade de números"
-                    className="block w-28 appearance-none border-0 bg-transparent text-center font-serif text-7xl font-bold leading-none text-charcoal outline-none focus-visible:ring-2 focus-visible:ring-gold"
-                    inputMode="numeric"
-                    min="1"
-                    onChange={(event) => changeQuantity(event.target.value)}
-                    onFocus={(event) => event.currentTarget.select()}
-                    pattern="[0-9]*"
-                    step="1"
-                    type="number"
-                    value={quantity}
-                  />
-                  <span className="mt-1 block text-xs text-warm-gray">
-                    {quantity === 1 ? 'número' : 'números'}
-                  </span>
+                    <button
+                      aria-label="Diminuir quantidade"
+                      className="grid h-14 w-14 place-items-center rounded-full border-2 border-green text-green transition disabled:cursor-not-allowed disabled:opacity-30"
+                      disabled={quantity === 1}
+                      onClick={decreaseQuantity}
+                      type="button"
+                    >
+                      <Minus className="h-5 w-5" />
+                    </button>
+                  </div>
+
+                  <div className="min-w-24 text-center">
+                    <input
+                      aria-label="Quantidade de números"
+                      className="block w-28 appearance-none border-0 bg-transparent text-center font-serif text-7xl font-bold leading-none text-charcoal outline-none focus-visible:ring-2 focus-visible:ring-gold"
+                      inputMode="numeric"
+                      min="1"
+                      onBlur={restoreDefaultQuantity}
+                      onChange={(event) => changeQuantity(event.target.value)}
+                      onFocus={(event) => event.currentTarget.select()}
+                      pattern="[0-9]*"
+                      step="1"
+                      type="number"
+                      value={quantityInputValue}
+                    />
+                    <span className="mt-1 block text-xs text-warm-gray">
+                      {quantity === 1 ? 'número' : 'números'}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      aria-label="Aumentar quantidade"
+                      className="grid h-14 w-14 place-items-center rounded-full bg-green text-white shadow-button transition hover:bg-green-deep"
+                      onClick={increaseQuantity}
+                      type="button"
+                    >
+                      <Plus className="h-5 w-5" />
+                    </button>
+
+                    <button
+                      aria-label="Adicionar 5 números"
+                      className="grid h-11 w-11 place-items-center rounded-full bg-green text-sm font-bold text-white shadow-button transition hover:bg-green-deep focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green"
+                      onClick={increaseQuantityByFive}
+                      type="button"
+                    >
+                      +5
+                    </button>
+                  </div>
                 </div>
-
-                <button
-                  aria-label="Aumentar quantidade"
-                  className="grid h-14 w-14 place-items-center rounded-full bg-green text-white shadow-button transition hover:bg-green-deep"
-                  onClick={increaseQuantity}
-                  type="button"
-                >
-                  <Plus className="h-5 w-5" />
-                </button>
               </div>
             </Card>
 
