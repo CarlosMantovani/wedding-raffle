@@ -431,6 +431,34 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled();
   });
 
+  it('scrolls to the top when the purchase step changes', async () => {
+    const user = userEvent.setup();
+    const scrollTo = vi.fn();
+    Object.defineProperty(window, 'scrollTo', {
+      configurable: true,
+      value: scrollTo,
+    });
+
+    renderApp('/buy');
+
+    expect(scrollTo).not.toHaveBeenCalled();
+
+    await user.type(screen.getByLabelText('Nome e sobrenome'), 'Guest User');
+    await user.type(screen.getByLabelText('Telefone'), '44988549696');
+    await user.type(screen.getByLabelText('CPF'), '52998224725');
+    await user.click(screen.getByRole('button', { name: 'Continuar' }));
+
+    await waitFor(() =>
+      expect(scrollTo).toHaveBeenLastCalledWith({ behavior: 'smooth', top: 0 }),
+    );
+
+    await screen.findAllByText('R$ 10,00');
+    await user.click(screen.getByRole('button', { name: 'Continuar' }));
+
+    await waitFor(() => expect(scrollTo).toHaveBeenCalledTimes(2));
+    expect(scrollTo).toHaveBeenLastCalledWith({ behavior: 'smooth', top: 0 });
+  });
+
   it('sends optional email when filled', async () => {
     const user = userEvent.setup();
     const assign = vi.fn();

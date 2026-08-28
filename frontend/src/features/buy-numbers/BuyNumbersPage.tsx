@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { ArrowLeft, CreditCard, Minus, Plus, Search } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 
 import { BrandMark, GoldDivider } from '../../components/brand/BrandMark';
@@ -52,6 +52,7 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
   const [recentCheckout, setRecentCheckout] = useState<RecentCheckout | null>(() =>
     readRecentCheckout(),
   );
+  const hasRenderedPurchaseStep = useRef(false);
   const [, setTick] = useState(0);
 
   const {
@@ -253,6 +254,15 @@ export function BuyNumbersPage({ showBackLink = false }: { showBackLink?: boolea
   const canContinueFromQuantity = Boolean(totalAmount) && !quoteQuery.isLoading;
   const giftMessageTooLong = giftMessage.trim().length > GIFT_MESSAGE_MAX_LENGTH;
   const isCheckoutBusy = createTransactionMutation.isPending || isRedirectingToCheckout;
+
+  useEffect(() => {
+    if (!hasRenderedPurchaseStep.current) {
+      hasRenderedPurchaseStep.current = true;
+      return;
+    }
+
+    window.scrollTo({ behavior: 'smooth', top: 0 });
+  }, [currentStep]);
 
   return (
     <main className="min-h-screen bg-cream px-6 pb-16 pt-10 text-charcoal">
