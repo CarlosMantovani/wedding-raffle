@@ -7,6 +7,8 @@ spring:
     url: ${DATABASE_URL}
     username: ${DATABASE_USERNAME}
     password: ${DATABASE_PASSWORD}
+    hikari:
+      max-lifetime: 240000
   jpa:
     hibernate:
       ddl-auto: validate
