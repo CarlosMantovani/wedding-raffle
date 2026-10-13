@@ -9,7 +9,7 @@ export function BrandMark() {
         <path d="M65 15 L69 23 L65 31 L61 23 Z" fill="#B8935A" opacity="0.72" />
       </svg>
       <h1 className="font-serif text-4xl font-bold leading-tight text-green sm:text-5xl">
-        <span className="max-[364px]:block">Paula</span>
+        <span className="max-[364px]:block">O Casal</span>
         <Heart
           aria-label="e"
           className="mx-2 mb-1 inline-block h-6 w-6 text-wine max-[364px]:mx-auto max-[364px]:my-1 max-[364px]:block sm:h-7 sm:w-7"
@@ -18,7 +18,7 @@ export function BrandMark() {
         <span className="max-[364px]:block">José Carlos</span>
       </h1>
       <p className="block text-base font-semibold italic m-2 text-inkSoft " >
-          Sua sorte, nossa Lua de Mel!
+          Sua sorte, nossa celebração!
       </p>
     </div>
   );
