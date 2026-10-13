@@ -15,10 +15,10 @@ export function BrandMark() {
           className="mx-2 mb-1 inline-block h-6 w-6 text-wine max-[364px]:mx-auto max-[364px]:my-1 max-[364px]:block sm:h-7 sm:w-7"
           strokeWidth={1.5}
         />
-        <span className="max-[364px]:block">José Carlos</span>
+        <span className="max-[364px]:block">Celebrante</span>
       </h1>
-      <p className="block text-base font-semibold italic m-2 text-inkSoft " >
-          Sua sorte, nossa celebração!
+      <p className="block text-base font-semibold italic m-2 text-inkSoft">
+        Sua sorte, nossa celebracao!
       </p>
     </div>
   );
